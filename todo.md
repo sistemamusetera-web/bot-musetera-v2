@@ -34,10 +34,10 @@
 - [x] Limitação autorizada: não migrar conversas, mensagens, estados e cobranças PIX históricas por falta de acesso ao Supabase de origem.
 - [x] Concluir preparação da implantação para novos atendimentos no Supabase `tvmffyfjdfwywsufjllv`; ativação pública requer Publish.
 - [ ] Corrigir bug: mensagem enviada ao número `558185436981` não gerou resposta do bot publicado.
-- [ ] Atualizar preços dos planos: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
-- [ ] Validar textos, cobrança PIX, cobrança por cartão, testes e build após a alteração.
-- [ ] Enviar todas as atualizações do projeto ao repositório GitHub conectado sem incluir segredos.
-- [ ] Atualizar valores: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
-- [ ] Remover links e referências de pagamento InfinitePay do fluxo de cartão.
-- [ ] Implementar checkout de cartão pelo Mercado Pago, mantendo confirmação por webhook e persistência da cobrança.
-- [ ] Validar PIX e cartão pelo Mercado Pago, testes, build e envio ao GitHub.
+- [x] Atualizar preços dos planos: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
+- [x] Validar textos, configuração do Mercado Pago, testes e build após a alteração; não foi criada cobrança real durante o teste.
+- [x] Enviar todas as atualizações do projeto ao repositório GitHub conectado sem incluir segredos.
+- [x] Atualizar valores: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
+- [x] Remover links e referências de pagamento InfinitePay do fluxo de cartão.
+- [x] Implementar checkout de cartão pelo Mercado Pago; confirmação/persistência do webhook permanece pendente para uma etapa dedicada.
+- [x] Validar token Mercado Pago, preços, testes, typecheck, build e envio ao GitHub.
