@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { supabaseAdmin } from '../supabase';
 import { sendWhatsAppText, normalizePhone } from './evolution';
-import { createPixPayment } from './mercadopago';
+import { createCardCheckout, createPixPayment } from './mercadopago';
 import {
   MAIN_MENU, PLANS, PAYMENT_METHOD_PROMPT, planChoicePrompt, pixSuccess,
   creditSuccess, PIX_ERROR, INVALID_OPTION, SUPPORT_ENTRY, HOW_IT_WORKS,
@@ -95,7 +95,10 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
   }
   if (step === 'plans_choose_credit') {
     const plan = ({ '1': PLANS['30d'], '2': PLANS['6m'], '3': PLANS['1y'] } as Record<string, typeof PLANS['30d']>)[t];
-    return plan ? { text: creditSuccess(plan), next: 'main', status: 'bot' } : { text: planChoicePrompt('credit'), next: step, status: 'bot' };
+    if (!plan) return { text: planChoicePrompt('credit'), next: step, status: 'bot' };
+    const checkout = await createCardCheckout({ amount: plan.price, description: `MuseTera ${plan.label}`, externalReference: `musetera-${conversation.id}-${Date.now()}` });
+    if (!checkout.ok) return { text: '❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *2* para falar com o suporte.', next: 'main', status: 'bot' };
+    return { text: creditSuccess(plan, checkout.checkoutUrl), next: 'main', status: 'bot' };
   }
   if (step === 'plans_choose_pix') {
     const plan = ({ '1': PLANS['30d'], '2': PLANS['6m'], '3': PLANS['1y'] } as Record<string, typeof PLANS['30d']>)[t];

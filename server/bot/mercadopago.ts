@@ -118,6 +118,43 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   }
 }
 
+export type CardCheckoutResult =
+  | { ok: true; preferenceId: string; checkoutUrl: string }
+  | { ok: false; code: 'config' | 'auth' | 'network' | 'server'; message: string };
+
+export async function createCardCheckout(input: { amount: number; description: string; externalReference: string }): Promise<CardCheckoutResult> {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  if (!token) return { ok: false, code: 'config', message: 'Gateway Mercado Pago não configurado' };
+  const baseUrl = (process.env.PUBLIC_APP_URL ?? 'https://botmusetera-nryykggd.manus.space').replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: [{ title: input.description, quantity: 1, currency_id: 'BRL', unit_price: Number(input.amount.toFixed(2)) }],
+        external_reference: input.externalReference,
+        notification_url: `${baseUrl}/api/webhooks/mercadopago`,
+        back_urls: { success: `${baseUrl}/`, failure: `${baseUrl}/`, pending: `${baseUrl}/` },
+        auto_return: 'approved',
+      }),
+      signal: controller.signal,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) return { ok: false, code: 'auth', message: 'Token Mercado Pago inválido' };
+      return { ok: false, code: 'server', message: body?.message ?? `Erro ${response.status}` };
+    }
+    if (!body?.id || !body?.init_point) return { ok: false, code: 'server', message: 'Checkout sem link de pagamento' };
+    return { ok: true, preferenceId: String(body.id), checkoutUrl: String(body.init_point) };
+  } catch (error) {
+    return { ok: false, code: 'network', message: error instanceof Error && error.name === 'AbortError' ? 'Tempo esgotado' : 'Falha de conexão' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Mercado Pago expects ISO date with offset "-03:00" (no "Z")
 function formatMpDate(iso: string): string {
   const d = new Date(iso);

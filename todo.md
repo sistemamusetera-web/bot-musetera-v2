@@ -3,18 +3,18 @@
 - [x] Auditar o código atual; o inventário confirmou que os dados históricos exigem acesso service_role de origem, indisponível.
 - [x] Confirmar o esquema efetivo do Supabase de destino `tvmffyfjdfwywsufjllv` e documentar diferenças.
 - [x] Recriar no novo Supabase todas as tabelas, tipos, índices, funções e políticas necessárias ao bot.
-- [ ] Migrar conversas operacionais existentes sem duplicação e sem apagar dados do destino.
-- [ ] Migrar mensagens operacionais existentes sem duplicação e preservando vínculos com conversas.
-- [ ] Migrar estados do bot e registros de cobranças PIX existentes com validação de contagens e integridade.
-- [ ] Configurar o backend para usar exclusivamente o novo Supabase.
+- [x] Não migrar conversas históricas: bloqueado por falta de acesso ao Supabase de origem e autorizado pelo usuário.
+- [x] Não migrar mensagens históricas: bloqueado por falta de acesso ao Supabase de origem e autorizado pelo usuário.
+- [x] Não migrar estados e cobranças PIX históricos: bloqueado por falta de acesso ao Supabase de origem e autorizado pelo usuário.
+- [x] Configurar o backend operacional para usar exclusivamente o novo Supabase; autenticação do painel permanece no OAuth gerenciado pelo scaffold.
 - [x] Garantir que chaves de serviço e segredos permaneçam somente em variáveis de ambiente do servidor.
 - [x] Implementar validação de assinatura/autorização dos webhooks da Evolution.
 - [x] Identificar a instância remetente em cada webhook e roteá-la corretamente.
 - [x] Processar mensagens recebidas pela instância `financeiro` no número `558185436981`.
 - [x] Manter `financeiro` ativa no cadastro de instâncias autorizadas.
-- [ ] Preservar o mesmo fluxo de atendimento financeiro do número anterior.
+- [x] Preservar o fluxo de novos atendimentos financeiros: menu, suporte, cadastro, planos, cartão e PIX.
 - [x] Implementar envio de mensagens pela Evolution com tratamento de erros e reintentos seguros.
-- [ ] Configurar a rota pública de webhook no backend publicado.
+- [x] Configurar a rota pública no backend; publicação final e troca da URL na Evolution dependem do botão Publish.
 - [x] Construir painel administrativo autenticado para estado da instância e registros de conversas.
 - [x] Adicionar observabilidade mínima para webhooks recebidos, falhas de processamento e envios.
 - [x] Escrever testes Vitest para roteamento de instância, persistência, autenticação e falhas de integração.
@@ -22,8 +22,8 @@
 - [x] Validar leitura e gravação no Supabase de destino.
 - [x] Validar estado de conexão `open` da instância `financeiro` na Evolution.
 - [x] Validar a rota de webhook com payload seguro não mutável; o fluxo real de mensagem depende da publicação pública.
-- [ ] Criar checkpoint da versão preparada para publicação, com limitações documentadas.
-- [ ] Entregar instruções de publicação e resumo de validações realizadas.
+- [x] Criar checkpoint da versão preparada para publicação, com limitações documentadas.
+- [x] Entregar instruções de publicação e resumo de validações realizadas no encerramento.
 
 ## Histórico
 
@@ -32,4 +32,12 @@
 - Webhook Evolution existente: `https://museterabot-rlburgyg.manus.space/api/webhooks/evolution`.
 - Registro `financeiro` já criado no Supabase `tvmffyfjdfwywsufjllv` como ativo, sujeito à integração do backend publicado.
 - [x] Limitação autorizada: não migrar conversas, mensagens, estados e cobranças PIX históricas por falta de acesso ao Supabase de origem.
-- [ ] Concluir implantação apenas para novos atendimentos no Supabase `tvmffyfjdfwywsufjllv`.
+- [x] Concluir preparação da implantação para novos atendimentos no Supabase `tvmffyfjdfwywsufjllv`; ativação pública requer Publish.
+- [ ] Corrigir bug: mensagem enviada ao número `558185436981` não gerou resposta do bot publicado.
+- [ ] Atualizar preços dos planos: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
+- [ ] Validar textos, cobrança PIX, cobrança por cartão, testes e build após a alteração.
+- [ ] Enviar todas as atualizações do projeto ao repositório GitHub conectado sem incluir segredos.
+- [ ] Atualizar valores: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
+- [ ] Remover links e referências de pagamento InfinitePay do fluxo de cartão.
+- [ ] Implementar checkout de cartão pelo Mercado Pago, mantendo confirmação por webhook e persistência da cobrança.
+- [ ] Validar PIX e cartão pelo Mercado Pago, testes, build e envio ao GitHub.

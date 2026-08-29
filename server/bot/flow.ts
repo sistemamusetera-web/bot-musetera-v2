@@ -88,9 +88,9 @@ export const SUPPORT_WAITING =
 
 export const PLANS_TEXT = `💳 *Planos MuseTera*
 
-🗓️ 30 Dias — *R$ 34,90*
-📅 6 Meses — *R$ 199,00*
-🏆 1 Ano — *R$ 299,00*
+🗓️ 30 Dias — *R$ 69,90*
+📅 6 Meses — *R$ 399,00*
+🏆 12 Meses — *R$ 699,00*
 
 _Para escolher um plano e pagar, digite *3* no menu._`;
 
@@ -101,34 +101,26 @@ export interface PlanInfo {
   label: string;
   price: number; // BRL
   priceLabel: string;
-  creditLink: string; // InfinitePay
 }
 
-// ⚠️ Atualize o link de 30 dias quando criar no painel InfinitePay.
 export const PLANS: Record<PlanInfo["id"], PlanInfo> = {
   "30d": {
     id: "30d",
     label: "30 Dias",
-    price: 34.9,
-    priceLabel: "R$ 34,90",
-    creditLink:
-      "https://link.infinitepay.io/karloss_christian/VC1DLTEtUg-1wFkGQI6Yz-34,90",
+    price: 69.9,
+    priceLabel: "R$ 69,90",
   },
   "6m": {
     id: "6m",
     label: "6 Meses",
-    price: 199.0,
-    priceLabel: "R$ 199,00",
-    creditLink:
-      "https://link.infinitepay.io/karloss_christian/VC1DLTYtUg-QgJWgtnsP-199,00",
+    price: 399.0,
+    priceLabel: "R$ 399,00",
   },
   "1y": {
     id: "1y",
-    label: "1 Ano",
-    price: 299.0,
-    priceLabel: "R$ 299,00",
-    creditLink:
-      "https://link.infinitepay.io/karloss_christian/VC1DLUMtUg-7kHgD4nE5n-299,00",
+    label: "12 Meses",
+    price: 699.0,
+    priceLabel: "R$ 699,00",
   },
 };
 
@@ -147,9 +139,9 @@ export const planChoicePrompt = (method: "pix" | "credit") => {
 
 Escolha seu plano:
 
-*1* 🗓️ 30 Dias — R$ 34,90
-*2* 📅 6 Meses — R$ 199,00
-*3* 🏆 1 Ano — R$ 299,00
+*1* 🗓️ 30 Dias — R$ 69,90
+*2* 📅 6 Meses — R$ 399,00
+*3* 🏆 12 Meses — R$ 699,00
 
 _Digite *menu* para voltar._`;
 };
@@ -167,14 +159,14 @@ export const pixSuccess = (plan: PlanInfo, payUrl: string) =>
 
 _Digite *menu* para voltar._`;
 
-export const creditSuccess = (plan: PlanInfo) =>
-  `💳 *Pagamento por cartão*
+export const creditSuccess = (plan: PlanInfo, checkoutUrl: string) =>
+  `💳 *Pagamento por cartão — Mercado Pago*
 
 📦 ${plan.label} — *${plan.priceLabel}*
 
-🔗 ${plan.creditLink}
+🔗 ${checkoutUrl}
 
-✨ Até 12x • InfinitePay (100% seguro)
+✨ Até 12x • Mercado Pago
 📩 Envie o comprovante após pagar
 📝 Faça seu cadastro digitando *6*
 
