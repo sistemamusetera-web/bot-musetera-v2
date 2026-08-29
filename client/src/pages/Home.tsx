@@ -1,33 +1,31 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { useMemo, useState } from 'react';
+import { useAuth } from '@/_core/hooks/useAuth';
+import { startLogin } from '@/const';
+import { trpc } from '@/lib/trpc';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, MessageSquare, Phone, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // The useAuth hook provides authentication state.
-  // To implement login/logout, call logout(), or start login from an event
-  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
-  // startLogin() during render (no href={startLogin()}) — it mints a one-time
-  // nonce cookie and must run only at the moment of navigation.
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const overview = trpc.admin.overview.useQuery(undefined, { enabled: user?.role === 'admin', refetchInterval: 15000 });
+  const messages = trpc.admin.messages.useQuery({ conversationId: selectedConversation ?? '' }, { enabled: Boolean(selectedConversation && user?.role === 'admin') });
+  const finance = useMemo(() => overview.data?.instances.find(instance => instance.instance_name === 'financeiro'), [overview.data]);
 
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  if (authLoading) return <main className="grid min-h-screen place-items-center bg-slate-950 text-white"><Loader2 className="animate-spin" /></main>;
+  if (!user) return <main className="grid min-h-screen place-items-center bg-[#101820] px-6 text-white"><Card className="w-full max-w-md border-white/10 bg-white/10 text-white"><CardHeader><CardTitle className="text-2xl">Painel MuseTera</CardTitle></CardHeader><CardContent className="space-y-5"><p className="text-slate-300">Entre com sua conta administrativa para acompanhar o atendimento financeiro.</p><Button onClick={startLogin} className="w-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">Entrar com segurança</Button></CardContent></Card></main>;
+  if (user.role !== 'admin') return <main className="grid min-h-screen place-items-center bg-slate-950 px-6 text-white"><p>Acesso restrito a administradores.</p></main>;
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+  return <main className="min-h-screen bg-[#f4f1eb] text-slate-900">
+    <header className="border-b border-slate-200 bg-[#101820] text-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5"><div><p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">MuseTera • Operações</p><h1 className="mt-1 text-2xl font-semibold">Atendimento financeiro</h1></div><Button onClick={() => overview.refetch()} variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10"><RefreshCw className="mr-2 h-4 w-4" />Atualizar</Button></div></header>
+    <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[360px_1fr]">
+      <section className="space-y-6">
+        <Card className="border-slate-200 bg-white shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-cyan-600" />Instâncias autorizadas</CardTitle></CardHeader><CardContent className="space-y-4">{overview.isLoading ? <Loader2 className="animate-spin" /> : overview.data?.instances.map(instance => <div key={instance.id} className="rounded-xl border border-slate-200 p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{instance.label || instance.instance_name}</p><p className="mt-1 text-sm text-slate-500">{instance.phone}</p></div><Badge className={instance.connection.state === 'open' && instance.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>{instance.connection.state === 'open' ? 'Conectada' : instance.connection.state}</Badge></div><p className="mt-3 text-xs text-slate-500">Instância Evolution: <span className="font-mono">{instance.instance_name}</span></p></div>)}</CardContent></Card>
+        <Card className="border-slate-200 bg-white shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><WalletCards className="h-5 w-5 text-cyan-600" />Resumo operacional</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Conexão</p><p className="mt-1 text-lg font-semibold">{finance?.connection.state ?? '—'}</p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Conversas</p><p className="mt-1 text-lg font-semibold">{overview.data?.conversations.length ?? 0}</p></div></CardContent></Card>
+      </section>
+      <section><Card className="border-slate-200 bg-white shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-cyan-600" />Conversas recentes</CardTitle></CardHeader><CardContent><div className="grid gap-5 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]"> <div className="space-y-2">{overview.data?.conversations.map(conversation => <button key={conversation.id} onClick={() => setSelectedConversation(conversation.id)} className={`w-full rounded-xl border p-4 text-left transition ${selectedConversation === conversation.id ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 hover:border-cyan-300'}`}><div className="flex items-center justify-between"><span className="font-medium">{conversation.contact_name || conversation.phone}</span><Badge variant="outline">{conversation.status}</Badge></div><p className="mt-1 flex items-center gap-1 text-sm text-slate-500"><Phone className="h-3 w-3" />{conversation.phone}</p><p className="mt-2 text-xs text-slate-400">Etapa: {conversation.current_menu}</p></button>)}</div><div className="min-h-72 rounded-2xl bg-slate-50 p-5">{selectedConversation ? <div className="space-y-3">{messages.isLoading ? <Loader2 className="animate-spin" /> : messages.data?.map(message => <div key={message.id} className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${message.direction === 'outbound' ? 'ml-auto bg-[#101820] text-white' : 'bg-white text-slate-800 shadow-sm'}`}><p>{message.content}</p><p className="mt-1 text-[10px] opacity-60">{new Date(message.created_at).toLocaleString('pt-BR')}</p></div>)}</div> : <div className="grid h-full place-items-center text-center text-slate-500"><div><MessageSquare className="mx-auto mb-3 h-8 w-8 opacity-40" /><p>Selecione uma conversa para acompanhar o histórico.</p></div></div>}</div></div></CardContent></Card></section>
     </div>
-  );
+  </main>;
 }
