@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { cleanInstance, handleEvolutionWebhook, validWebhook } from './bot/webhook-handler';
+import { cleanInstance, handleEvolutionWebhook, isConversationMuted, validWebhook } from './bot/webhook-handler';
 import { normalizePhone } from './bot/evolution';
 
 describe('webhook safety and routing helpers', () => {
@@ -33,5 +33,13 @@ describe('webhook safety and routing helpers', () => {
     expect(validWebhook(request as never, raw)).toBe(true);
     process.env.WEBHOOK_SHARED_TOKEN = original;
 
+  });
+
+
+  it('keeps muted conversations paused until expiry unless the user reactivates the menu', () => {
+    const now = Date.parse('2026-10-12T12:00:00.000Z');
+    expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'oi', now)).toBe(true);
+    expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'menu', now)).toBe(false);
+    expect(isConversationMuted({ muted_until: '2026-10-12T11:30:00.000Z' }, 'oi', now)).toBe(false);
   });
 });
