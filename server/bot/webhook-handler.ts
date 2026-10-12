@@ -21,6 +21,16 @@ type Conversation = { id: string; phone: string; contact_name: string | null; cu
 function json(res: Response, body: unknown, status = 200) { return res.status(status).json(body); }
 export function cleanInstance(value?: string) { return value?.trim().replace(/^\/+|\/+$/g, '').split('/').filter(Boolean).at(-1); }
 
+export function isConversationMuted(
+  conversation: Pick<Conversation, 'muted_until'>,
+  text: string,
+  now = Date.now(),
+): boolean {
+  if (isReactivationWord(text)) return false;
+  const mutedUntil = conversation.muted_until ? Date.parse(conversation.muted_until) : NaN;
+  return Number.isFinite(mutedUntil) && mutedUntil > now;
+}
+
 async function resolveInstance(incoming?: string): Promise<{ instance: string; apiKey?: string } | null> {
   const wanted = cleanInstance(incoming);
   const query = supabaseAdmin.from('whatsapp_instances').select('instance_name,api_key_override,is_active');
@@ -122,7 +132,7 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
 }
 
 export async function handleEvolutionWebhook(req: Request, res: Response) {
-  const raw = JSON.stringify(req.body ?? {});
+  const raw = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body ?? {});
   if (!validWebhook(req, raw)) {
     console.warn(JSON.stringify({ event: 'webhook_rejected', path: req.path, ip: req.ip }));
     return json(res, { ok: false, error: 'invalid webhook authentication' }, 401);
@@ -146,6 +156,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   if (!text) return json(res, { ok: true, ignored: 'no-text' });
   const conversation = await getOrCreate(phone, data?.pushName);
   await addMessage(conversation.id, 'inbound', 'user', text, data?.key?.id);
+  if (isConversationMuted(conversation, text)) return json(res, { ok: true, handled: 'muted' });
   if (conversation.status === 'human' && !isReactivationWord(text)) return json(res, { ok: true, handled: 'human-mode' });
   const answer = await replyFor(conversation, text);
   const sent = await sendWhatsAppText({ number: phone, text: answer.text, instance: resolved.instance, apiKey: resolved.apiKey });
