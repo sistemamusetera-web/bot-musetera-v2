@@ -3,7 +3,7 @@
 create table if not exists public.mp_orders (
   id uuid primary key default gen_random_uuid(),
   external_reference text not null unique,
-  conversation_id uuid not null,
+  conversation_id text not null,
   phone text not null,
   instance_name text not null,
   plan_id text not null check (plan_id in ('30d', '6m', '1y')),
