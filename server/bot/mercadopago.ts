@@ -41,7 +41,8 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   // 30-minute expiration
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
-  const baseUrl = (process.env.PUBLIC_APP_URL ?? "https://muse-tera-buddy.lovable.app").replace(/\/+$/, "");
+  const baseUrl = getPublicAppUrl();
+  if (!baseUrl) return { ok: false, code: "config", message: "PUBLIC_APP_URL deve apontar para a URL HTTPS pública do servidor" };
   const notificationUrl = `${baseUrl}/api/public/mp-webhook`;
 
   const body = {
@@ -120,7 +121,8 @@ export type CardCheckoutResult =
 export async function createCardCheckout(input: { amount: number; description: string; externalReference: string }): Promise<CardCheckoutResult> {
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
   if (!token) return { ok: false, code: 'config', message: 'Gateway Mercado Pago não configurado' };
-  const baseUrl = (process.env.PUBLIC_APP_URL ?? 'https://botmusetera-nryykggd.manus.space').replace(/\/+$/, '');
+  const baseUrl = getPublicAppUrl();
+  if (!baseUrl) return { ok: false, code: 'config', message: 'PUBLIC_APP_URL deve apontar para a URL HTTPS pública do servidor' };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -214,5 +216,17 @@ export async function fetchMercadoPagoPayment(paymentId: string): Promise<Mercad
     return await response.json() as MercadoPagoPayment;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function getPublicAppUrl(): string | null {
+  const configured = process.env.PUBLIC_APP_URL?.trim();
+  if (!configured) return null;
+  try {
+    const parsed = new URL(configured);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    return parsed.origin.replace(/\/+$/, '');
+  } catch {
+    return null;
   }
 }
