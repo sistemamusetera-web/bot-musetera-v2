@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 // Mercado Pago PIX integration for the MuseTera WhatsApp bot.
 // Generates a dynamic PIX QR Code (copia-e-cola) for a given amount.
 //
@@ -8,6 +9,7 @@ export interface PixInput {
   amount: number; // BRL value, e.g. 34.90
   description: string;
   payerEmail?: string;
+  externalReference?: string;
 }
 
 export type PixResult =
@@ -45,6 +47,7 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   const body = {
     transaction_amount: Number(input.amount.toFixed(2)),
     description: input.description,
+    external_reference: input.externalReference,
     payment_method_id: "pix",
     payer: {
       email: input.payerEmail ?? "cliente@musetera.com.br",
@@ -68,10 +71,7 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
     const json: any = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      console.error("[mercadopago] payment creation failed", {
-        status: res.status,
-        body: json,
-      });
+      console.error("[mercadopago] payment creation failed", { status: res.status });
       if (res.status === 401 || res.status === 403) {
         return { ok: false, code: "auth", message: "Token Mercado Pago inválido" };
       }
@@ -85,7 +85,7 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
     const tx = json?.point_of_interaction?.transaction_data;
     const qrCode: string | undefined = tx?.qr_code;
     if (!qrCode) {
-      console.error("[mercadopago] missing qr_code in response", json);
+      console.error("[mercadopago] missing qr_code in response");
       return { ok: false, code: "server", message: "Resposta sem QR Code" };
     }
 
@@ -161,4 +161,58 @@ function formatMpDate(iso: string): string {
   const mi = pad(d.getUTCMinutes());
   const ss = pad(d.getUTCSeconds());
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}.000-00:00`;
+}
+
+export interface MercadoPagoPayment {
+  id: string | number;
+  status: string;
+  status_detail?: string;
+  external_reference?: string | null;
+  transaction_amount: number;
+  currency_id?: string;
+}
+
+export function verifyMercadoPagoWebhookSignature(input: {
+  dataId: string;
+  requestId: string;
+  signatureHeader: string;
+  secret: string;
+}) {
+  const parts = Object.fromEntries(
+    input.signatureHeader.split(',').map(part => {
+      const [key, ...value] = part.trim().split('=');
+      return [key, value.join('=')];
+    }),
+  );
+  const timestamp = parts.ts;
+  const received = parts.v1;
+  if (!timestamp || !received || !input.requestId || !input.dataId || !input.secret) return false;
+  const manifest = `id:${input.dataId.toLowerCase()};request-id:${input.requestId};ts:${timestamp};`;
+  const expected = createHmac('sha256', input.secret).update(manifest).digest('hex');
+  if (received.length !== expected.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(received, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchMercadoPagoPayment(paymentId: string): Promise<MercadoPagoPayment | null> {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  if (!token) throw new Error('Mercado Pago is not configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_URL}/${encodeURIComponent(paymentId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      // Do not log provider response bodies; they may contain sensitive data.
+      throw new Error(`Mercado Pago payment lookup failed with status ${response.status}`);
+    }
+    return await response.json() as MercadoPagoPayment;
+  } finally {
+    clearTimeout(timer);
+  }
 }
