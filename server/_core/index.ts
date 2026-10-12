@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import type { Request, Response } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -53,7 +54,7 @@ async function startServer() {
     });
   });
   // Mercado Pago sends notifications to both historical URLs configured by the bot.
-  const mercadoPagoWebhook = (req: express.Request, res: express.Response) => {
+  const mercadoPagoWebhook = (req: Request, res: Response) => {
     handleMercadoPagoWebhook(req, res).catch(error => {
       console.error('[mercadopago-webhook] unhandled error', error instanceof Error ? error.message : 'unknown error');
       if (!res.headersSent) res.status(503).json({ ok: false, error: 'payment notification unavailable' });
