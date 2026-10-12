@@ -89,11 +89,29 @@ async function addMessage(conversationId: string, direction: 'inbound' | 'outbou
   if (result.error && result.error.code !== '23505') throw result.error;
 }
 
-type PixCharge = { planId: string; planLabel: string; amount: number; paymentId: string; qrCode: string; qrCodeBase64?: string; expiresAt: string; };
+type PaymentOrder = {
+  planId: string;
+  planLabel: string;
+  amount: number;
+  externalReference: string;
+  paymentMethod: 'pix' | 'card';
+  paymentId?: string;
+  preferenceId?: string;
+  qrCode?: string;
+  qrCodeBase64?: string;
+  expiresAt?: string;
+};
 
-async function replyFor(conversation: Conversation, text: string): Promise<{ text: string; next: string; status: string; muted?: string; charge?: PixCharge }> {
+async function replyFor(conversation: Conversation, text: string): Promise<{ text: string; next: string; status: string; muted?: string; order?: PaymentOrder }> {
   const step = isReactivationWord(text) ? 'main' : (conversation.current_menu || 'main');
   const t = text.trim().toLowerCase();
+  if (step.startsWith('register_wait_')) {
+    return {
+      text: '🔐 Para proteger sua senha, o cadastro não é feito pelo WhatsApp. Acesse https://portal.musetera.com.br/login para continuar com segurança ou fale com o suporte pelo menu.',
+      next: 'main',
+      status: 'bot',
+    };
+  }
   if (t === '0') return { text: '🔕 Atendimento pausado por 1 hora. Digite *menu* para reativar.', next: step, status: 'bot', muted: new Date(Date.now() + MUTE_MS).toISOString() };
   if (step === 'main') {
     if (t === '1') return { text: SCHEDULE_PROMPT, next: 'schedule_wait_datetime', status: 'bot' };
@@ -101,7 +119,11 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
     if (t === '3') return { text: PAYMENT_METHOD_PROMPT, next: 'plans_choose_method', status: 'bot' };
     if (t === '4') return { text: BUG_PROMPT_TEXT, next: 'bug_wait_text', status: 'bot' };
     if (t === '5') return { text: HOW_IT_WORKS, next: 'main', status: 'bot' };
-    if (t === '6') return { text: REGISTER_PROMPT_NAME, next: 'register_wait_name', status: 'bot' };
+    if (t === '6') return {
+      text: '🔐 Para proteger seus dados, não envie senhas pelo WhatsApp. Inicie seu cadastro pelo portal seguro: https://portal.musetera.com.br/login. Se precisar de ajuda, digite *2* para falar com o suporte.',
+      next: 'main',
+      status: 'bot',
+    };
     return { text: MAIN_MENU, next: 'main', status: 'bot' };
   }
   if (step === 'plans_choose_method') {
@@ -112,16 +134,38 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
   if (step === 'plans_choose_credit') {
     const plan = ({ '1': PLANS['30d'], '2': PLANS['6m'], '3': PLANS['1y'] } as Record<string, typeof PLANS['30d']>)[t];
     if (!plan) return { text: planChoicePrompt('credit'), next: step, status: 'bot' };
-    const checkout = await createCardCheckout({ amount: plan.price, description: `MuseTera ${plan.label}`, externalReference: `musetera-${conversation.id}-${Date.now()}` });
+    const externalReference = `musetera-${conversation.id}-${Date.now()}`;
+    const checkout = await createCardCheckout({ amount: plan.price, description: `MuseTera ${plan.label}`, externalReference });
     if (!checkout.ok) return { text: '❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *2* para falar com o suporte.', next: 'main', status: 'bot' };
-    return { text: creditSuccess(plan, checkout.checkoutUrl), next: 'main', status: 'bot' };
+    return {
+      text: creditSuccess(plan, checkout.checkoutUrl),
+      next: 'main',
+      status: 'bot',
+      order: { planId: plan.id, planLabel: plan.label, amount: plan.price, externalReference, paymentMethod: 'card', preferenceId: checkout.preferenceId },
+    };
   }
   if (step === 'plans_choose_pix') {
     const plan = ({ '1': PLANS['30d'], '2': PLANS['6m'], '3': PLANS['1y'] } as Record<string, typeof PLANS['30d']>)[t];
     if (!plan) return { text: planChoicePrompt('pix'), next: step, status: 'bot' };
-    const pix = await createPixPayment({ amount: plan.price, description: `MuseTera ${plan.label}` });
+    const externalReference = `musetera-${conversation.id}-${Date.now()}`;
+    const pix = await createPixPayment({ amount: plan.price, description: `MuseTera ${plan.label}`, externalReference });
     if (!pix.ok) return { text: PIX_ERROR, next: 'main', status: 'bot' };
-    return { text: pixSuccess(plan, pix.qrCode), next: 'main', status: 'bot', charge: { planId: plan.id, planLabel: plan.label, amount: plan.price, paymentId: String(pix.paymentId), qrCode: pix.qrCode, qrCodeBase64: pix.qrCodeBase64, expiresAt: pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString() } };
+    return {
+      text: pixSuccess(plan, pix.qrCode),
+      next: 'main',
+      status: 'bot',
+      order: {
+        planId: plan.id,
+        planLabel: plan.label,
+        amount: plan.price,
+        externalReference,
+        paymentMethod: 'pix',
+        paymentId: String(pix.paymentId),
+        qrCode: pix.qrCode,
+        qrCodeBase64: pix.qrCodeBase64,
+        expiresAt: pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      },
+    };
   }
   const prompts: Record<string, string> = {
     schedule_wait_datetime: '✅ Solicitação recebida! Nossa equipe confirmará o horário em breve.\n\n_Digite *menu* para voltar._',
@@ -165,16 +209,34 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   if (isConversationMuted(conversation, text)) return json(res, { ok: true, handled: 'muted' });
   if (conversation.status === 'human' && !isReactivationWord(text)) return json(res, { ok: true, handled: 'human-mode' });
   const answer = await replyFor(conversation, text);
+  if (answer.order) {
+    const persisted = await supabaseAdmin.from('mp_orders').insert({
+      external_reference: answer.order.externalReference,
+      conversation_id: conversation.id,
+      phone,
+      instance_name: resolved.instance,
+      plan_id: answer.order.planId,
+      plan_label: answer.order.planLabel,
+      amount: answer.order.amount,
+      payment_method: answer.order.paymentMethod,
+      payment_id: answer.order.paymentId ?? null,
+      preference_id: answer.order.preferenceId ?? null,
+      qr_code: answer.order.qrCode ?? null,
+      qr_code_base64: answer.order.qrCodeBase64 ?? null,
+      expires_at: answer.order.expiresAt ?? null,
+      status: 'pending',
+    });
+    if (persisted.error) {
+      console.error('[payment] failed to persist order', { code: persisted.error.code });
+      return json(res, { ok: false, error: 'payment order could not be saved' }, 500);
+    }
+  }
   const sent = await sendWhatsAppText({ number: phone, text: answer.text, instance: resolved.instance, apiKey: resolved.apiKey });
   if (!sent.ok) {
     console.error(JSON.stringify({ event: 'evolution_send_failed', instance: resolved.instance, error: sent.error }));
-    return json(res, { ok: false, error: sent.error }, 502);
+    return json(res, { ok: false, error: 'message delivery failed' }, 502);
   }
   console.info(JSON.stringify({ event: 'message_processed', instance: resolved.instance, nextStep: answer.next }));
-  if (answer.charge) {
-    const charge = await supabaseAdmin.from('pix_charges').insert({ plan_id: answer.charge.planId, plan_label: answer.charge.planLabel, amount: answer.charge.amount, payment_id: answer.charge.paymentId, qr_code: answer.charge.qrCode, qr_code_base64: answer.charge.qrCodeBase64 ?? null, expires_at: answer.charge.expiresAt, phone, instance_name: resolved.instance, status: 'pending' });
-    if (charge.error) console.error('[pix] failed to persist charge', { error: charge.error.message });
-  }
   await addMessage(conversation.id, 'outbound', 'bot', answer.text, sent.id);
   await supabaseAdmin.from('conversations').update({ current_menu: answer.next, status: answer.status, muted_until: answer.muted ?? null, last_message_at: new Date().toISOString() }).eq('id', conversation.id);
   await supabaseAdmin.from('bot_state').upsert({ conversation_id: conversation.id, current_step: answer.next, context_data: {}, updated_at: new Date().toISOString() }, { onConflict: 'conversation_id' });
