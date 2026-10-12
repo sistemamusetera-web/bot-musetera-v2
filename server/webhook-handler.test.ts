@@ -51,4 +51,25 @@ describe('webhook safety and routing helpers', () => {
     expect(normalizeInteractiveReply('2')).toBe('2');
     expect(normalizeInteractiveReply('support')).toBe('support');
   });
+  it('verifies Mercado Pago webhook signatures using the documented manifest', () => {
+    const secret = 'test-webhook-secret';
+    const dataId = '123456789';
+    const requestId = 'request-123';
+    const timestamp = '1729000000';
+    const manifest = `id:${dataId};request-id:${requestId};ts:${timestamp};`;
+    const v1 = createHmac('sha256', secret).update(manifest).digest('hex');
+    expect(verifyMercadoPagoWebhookSignature({
+      dataId,
+      requestId,
+      signatureHeader: `ts=${timestamp},v1=${v1}`,
+      secret,
+    })).toBe(true);
+    expect(verifyMercadoPagoWebhookSignature({
+      dataId,
+      requestId,
+      signatureHeader: `ts=${timestamp},v1=${'0'.repeat(64)}`,
+      secret,
+    })).toBe(false);
+  });
+
 });
