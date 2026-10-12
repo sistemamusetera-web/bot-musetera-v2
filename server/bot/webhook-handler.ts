@@ -161,10 +161,10 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   const answer = await replyFor(conversation, text);
   const sent = await sendWhatsAppText({ number: phone, text: answer.text, instance: resolved.instance, apiKey: resolved.apiKey });
   if (!sent.ok) {
-    console.error(JSON.stringify({ event: 'evolution_send_failed', instance: resolved.instance, phone, error: sent.error }));
+    console.error(JSON.stringify({ event: 'evolution_send_failed', instance: resolved.instance, error: sent.error }));
     return json(res, { ok: false, error: sent.error }, 502);
   }
-  console.info(JSON.stringify({ event: 'message_processed', instance: resolved.instance, phone, nextStep: answer.next }));
+  console.info(JSON.stringify({ event: 'message_processed', instance: resolved.instance, nextStep: answer.next }));
   if (answer.charge) {
     const charge = await supabaseAdmin.from('pix_charges').insert({ plan_id: answer.charge.planId, plan_label: answer.charge.planLabel, amount: answer.charge.amount, payment_id: answer.charge.paymentId, qr_code: answer.charge.qrCode, qr_code_base64: answer.charge.qrCodeBase64 ?? null, expires_at: answer.charge.expiresAt, phone, instance_name: resolved.instance, status: 'pending' });
     if (charge.error) console.error('[pix] failed to persist charge', { error: charge.error.message });
