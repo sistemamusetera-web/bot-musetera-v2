@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleEvolutionWebhook } from "../bot/webhook-handler";
+import { handleMercadoPagoWebhook } from "../bot/payment-webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,13 +38,27 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
-  app.get('/api/webhooks/evolution', (_req, res) => res.json({ ok: true, service: 'musetera-bot' }));
-  app.post('/api/webhooks/evolution', (req, res) => {
+  app.get("/api/webhooks/evolution", (_req, res) =>
+    res.json({ ok: true, service: "musetera-bot" })
+  );
+  app.post("/api/webhooks/evolution", (req, res) => {
     handleEvolutionWebhook(req, res).catch(error => {
-      console.error('[webhook] unhandled error', error);
-      if (!res.headersSent) res.status(500).json({ ok: false, error: 'internal webhook error' });
+      console.error("[webhook] unhandled error", error);
+      if (!res.headersSent)
+        res.status(500).json({ ok: false, error: "internal webhook error" });
     });
   });
+  for (const path of ["/api/public/mp-webhook", "/api/webhooks/mercadopago"]) {
+    app.post(path, (req, res) => {
+      handleMercadoPagoWebhook(req, res).catch(error => {
+        console.error("[mercadopago-webhook] unhandled error", error);
+        if (!res.headersSent)
+          res
+            .status(500)
+            .json({ ok: false, error: "internal payment webhook error" });
+      });
+    });
+  }
   // tRPC API
   app.use(
     "/api/trpc",

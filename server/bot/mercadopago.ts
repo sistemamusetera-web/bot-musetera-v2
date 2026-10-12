@@ -8,6 +8,7 @@ export interface PixInput {
   amount: number; // BRL value, e.g. 34.90
   description: string;
   payerEmail?: string;
+  externalReference?: string;
 }
 
 export type PixResult =
@@ -19,7 +20,20 @@ export type PixResult =
       paymentId: string | number;
       expiresAt?: string;
     }
-  | { ok: false; code: "config" | "auth" | "network" | "server"; message: string };
+  | {
+      ok: false;
+      code: "config" | "auth" | "network" | "server";
+      message: string;
+    };
+
+export type MercadoPagoPayment = {
+  id: string;
+  status: string;
+  statusDetail?: string;
+  externalReference?: string;
+  transactionAmount?: number;
+  description?: string;
+};
 
 const TIMEOUT_MS = 15_000;
 const API_URL = "https://api.mercadopago.com/v1/payments";
@@ -29,7 +43,11 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   const token = rawToken?.trim();
   if (!token) {
     console.error("[mercadopago] missing MERCADOPAGO_ACCESS_TOKEN");
-    return { ok: false, code: "config", message: "Gateway PIX não configurado" };
+    return {
+      ok: false,
+      code: "config",
+      message: "Gateway PIX não configurado",
+    };
   }
   console.log("[mercadopago] token check", {
     length: token.length,
@@ -44,7 +62,9 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   // 30-minute expiration
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
-  const baseUrl = (process.env.PUBLIC_APP_URL ?? "https://muse-tera-buddy.lovable.app").replace(/\/+$/, "");
+  const baseUrl = (
+    process.env.PUBLIC_APP_URL ?? "https://muse-tera-buddy.lovable.app"
+  ).replace(/\/+$/, "");
   const notificationUrl = `${baseUrl}/api/public/mp-webhook`;
 
   const body = {
@@ -56,6 +76,7 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
     },
     date_of_expiration: formatMpDate(expiresAt),
     notification_url: notificationUrl,
+    external_reference: input.externalReference,
   };
 
   try {
@@ -78,7 +99,11 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
         body: json,
       });
       if (res.status === 401 || res.status === 403) {
-        return { ok: false, code: "auth", message: "Token Mercado Pago inválido" };
+        return {
+          ok: false,
+          code: "auth",
+          message: "Token Mercado Pago inválido",
+        };
       }
       return {
         ok: false,
@@ -118,38 +143,169 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
   }
 }
 
-export type CardCheckoutResult =
-  | { ok: true; preferenceId: string; checkoutUrl: string }
-  | { ok: false; code: 'config' | 'auth' | 'network' | 'server'; message: string };
-
-export async function createCardCheckout(input: { amount: number; description: string; externalReference: string }): Promise<CardCheckoutResult> {
+/** Busca o estado autoritativo do pagamento diretamente no Mercado Pago. */
+export async function getMercadoPagoPayment(paymentId: string): Promise<
+  | { ok: true; payment: MercadoPagoPayment }
+  | {
+      ok: false;
+      code: "config" | "auth" | "network" | "server";
+      message: string;
+    }
+> {
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
-  if (!token) return { ok: false, code: 'config', message: 'Gateway Mercado Pago não configurado' };
-  const baseUrl = (process.env.PUBLIC_APP_URL ?? 'https://botmusetera-nryykggd.manus.space').replace(/\/+$/, '');
+  if (!token)
+    return {
+      ok: false,
+      code: "config",
+      message: "Gateway Mercado Pago não configurado",
+    };
+  if (!/^\d+$/.test(paymentId))
+    return { ok: false, code: "server", message: "payment_id inválido" };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: [{ title: input.description, quantity: 1, currency_id: 'BRL', unit_price: Number(input.amount.toFixed(2)) }],
-        external_reference: input.externalReference,
-        notification_url: `${baseUrl}/api/webhooks/mercadopago`,
-        back_urls: { success: `${baseUrl}/`, failure: `${baseUrl}/`, pending: `${baseUrl}/` },
-        auto_return: 'approved',
-      }),
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      `${API_URL}/${encodeURIComponent(paymentId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      }
+    );
+    const body: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403)
+        return {
+          ok: false,
+          code: "auth",
+          message: "Token Mercado Pago inválido",
+        };
+      return {
+        ok: false,
+        code: "server",
+        message: body?.message ?? `Erro ${response.status}`,
+      };
+    }
+    return {
+      ok: true,
+      payment: {
+        id: String(body.id),
+        status: String(body.status ?? "unknown"),
+        statusDetail: body.status_detail
+          ? String(body.status_detail)
+          : undefined,
+        externalReference: body.external_reference
+          ? String(body.external_reference)
+          : undefined,
+        transactionAmount:
+          typeof body.transaction_amount === "number"
+            ? body.transaction_amount
+            : undefined,
+        description: body.description ? String(body.description) : undefined,
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "network",
+      message:
+        error instanceof Error && error.name === "AbortError"
+          ? "Tempo esgotado"
+          : "Falha de conexão",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export type CardCheckoutResult =
+  | { ok: true; preferenceId: string; checkoutUrl: string }
+  | {
+      ok: false;
+      code: "config" | "auth" | "network" | "server";
+      message: string;
+    };
+
+export async function createCardCheckout(input: {
+  amount: number;
+  description: string;
+  externalReference: string;
+}): Promise<CardCheckoutResult> {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+  if (!token)
+    return {
+      ok: false,
+      code: "config",
+      message: "Gateway Mercado Pago não configurado",
+    };
+  const baseUrl = (
+    process.env.PUBLIC_APP_URL ?? "https://botmusetera-nryykggd.manus.space"
+  ).replace(/\/+$/, "");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      "https://api.mercadopago.com/checkout/preferences",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: [
+            {
+              title: input.description,
+              quantity: 1,
+              currency_id: "BRL",
+              unit_price: Number(input.amount.toFixed(2)),
+            },
+          ],
+          external_reference: input.externalReference,
+          notification_url: `${baseUrl}/api/webhooks/mercadopago`,
+          back_urls: {
+            success: `${baseUrl}/`,
+            failure: `${baseUrl}/`,
+            pending: `${baseUrl}/`,
+          },
+          auto_return: "approved",
+        }),
+        signal: controller.signal,
+      }
+    );
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) return { ok: false, code: 'auth', message: 'Token Mercado Pago inválido' };
-      return { ok: false, code: 'server', message: body?.message ?? `Erro ${response.status}` };
+      if (response.status === 401 || response.status === 403)
+        return {
+          ok: false,
+          code: "auth",
+          message: "Token Mercado Pago inválido",
+        };
+      return {
+        ok: false,
+        code: "server",
+        message: body?.message ?? `Erro ${response.status}`,
+      };
     }
-    if (!body?.id || !body?.init_point) return { ok: false, code: 'server', message: 'Checkout sem link de pagamento' };
-    return { ok: true, preferenceId: String(body.id), checkoutUrl: String(body.init_point) };
+    if (!body?.id || !body?.init_point)
+      return {
+        ok: false,
+        code: "server",
+        message: "Checkout sem link de pagamento",
+      };
+    return {
+      ok: true,
+      preferenceId: String(body.id),
+      checkoutUrl: String(body.init_point),
+    };
   } catch (error) {
-    return { ok: false, code: 'network', message: error instanceof Error && error.name === 'AbortError' ? 'Tempo esgotado' : 'Falha de conexão' };
+    return {
+      ok: false,
+      code: "network",
+      message:
+        error instanceof Error && error.name === "AbortError"
+          ? "Tempo esgotado"
+          : "Falha de conexão",
+    };
   } finally {
     clearTimeout(timer);
   }
