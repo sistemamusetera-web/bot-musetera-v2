@@ -58,7 +58,6 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
   // 403 is now treated as final — repeated 403s usually mean an edge firewall (fail2ban,
   // Cloudflare, iptables) is blocking us, and retrying just makes the ban worse.
   const retryDelaysMs = [800];
-  let lastErrorBody = "";
   let lastStatus = 0;
 
   for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
@@ -83,7 +82,6 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
       }
 
       lastStatus = res.status;
-      lastErrorBody = JSON.stringify(data);
 
       // Only retry on 409 (instance busy). 403 is treated as final — see comment above.
       const shouldRetry = res.status === 409 && attempt < retryDelaysMs.length;
@@ -115,7 +113,7 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
     }
   }
 
-  return { ok: false, error: `Evolution API error ${lastStatus} after retries: ${lastErrorBody}` };
+  return { ok: false, error: `Evolution API error ${lastStatus} after retries` };
 }
 
 // ---------- Interactive messages (buttons / list) ----------
