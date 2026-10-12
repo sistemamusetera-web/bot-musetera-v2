@@ -39,7 +39,7 @@ describe('webhook safety and routing helpers', () => {
 
   it('keeps muted conversations paused until expiry unless the user reactivates the menu', () => {
     const now = Date.parse('2026-10-12T12:00:00.000Z');
-    expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'oi', now)).toBe(true);
+    expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'teste', now)).toBe(true);
     expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'menu', now)).toBe(false);
     expect(isConversationMuted({ muted_until: '2026-10-12T11:30:00.000Z' }, 'oi', now)).toBe(false);
   });
