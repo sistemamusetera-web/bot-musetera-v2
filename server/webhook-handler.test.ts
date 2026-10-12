@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { cleanInstance, handleEvolutionWebhook, isConversationMuted, normalizeInteractiveReply, validWebhook } from './bot/webhook-handler';
 import { normalizePhone } from './bot/evolution';
+import { verifyMercadoPagoWebhookSignature } from './bot/mercadopago';
 
 describe('webhook safety and routing helpers', () => {
   it('normalizes Evolution instance URLs to the instance name', () => {
