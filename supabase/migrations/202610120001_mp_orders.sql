@@ -17,6 +17,7 @@ create table if not exists public.mp_orders (
   expires_at timestamptz,
   status text not null default 'pending',
   paid_at timestamptz,
+  notification_sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
