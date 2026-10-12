@@ -205,7 +205,16 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   const text = normalizeInteractiveReply(data?.message?.conversation ?? data?.message?.extendedTextMessage?.text ?? data?.message?.buttonsResponseMessage?.selectedButtonId ?? data?.message?.listResponseMessage?.singleSelectReply?.selectedRowId);
   if (!text) return json(res, { ok: true, ignored: 'no-text' });
   const conversation = await getOrCreate(phone, data?.pushName);
-  await addMessage(conversation.id, 'inbound', 'user', text, data?.key?.id);
+  // A conversation deployed before the secure-registration change may still be
+  // waiting for a password. Never persist that legacy password in message history.
+  const redactInbound = conversation.current_menu === 'register_wait_password';
+  await addMessage(
+    conversation.id,
+    'inbound',
+    'user',
+    redactInbound ? '[redacted: legacy registration password input]' : text,
+    data?.key?.id,
+  );
   if (isConversationMuted(conversation, text)) return json(res, { ok: true, handled: 'muted' });
   if (conversation.status === 'human' && !isReactivationWord(text)) return json(res, { ok: true, handled: 'human-mode' });
   const answer = await replyFor(conversation, text);
