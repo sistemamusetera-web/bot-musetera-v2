@@ -88,10 +88,17 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
         '',
         'Se precisar de ajuda, responda *2* para falar com o suporte.',
       ].join('\n');
+      const instanceConfig = await supabaseAdmin
+        .from('whatsapp_instances')
+        .select('api_key_override')
+        .eq('instance_name', order.instance_name)
+        .maybeSingle();
+      if (instanceConfig.error) throw instanceConfig.error;
       const sent = await sendWhatsAppText({
         number: order.phone,
         text: message,
         instance: order.instance_name,
+        apiKey: instanceConfig.data?.api_key_override ?? undefined,
       });
       if (!sent.ok) {
         console.error('[mercadopago-webhook] confirmation message failed', { orderId: order.id });
