@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { cleanInstance, handleEvolutionWebhook, isConversationMuted, validWebhook } from './bot/webhook-handler';
+import { cleanInstance, handleEvolutionWebhook, isConversationMuted, normalizeInteractiveReply, validWebhook } from './bot/webhook-handler';
 import { normalizePhone } from './bot/evolution';
 
 describe('webhook safety and routing helpers', () => {
@@ -41,5 +41,13 @@ describe('webhook safety and routing helpers', () => {
     expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'oi', now)).toBe(true);
     expect(isConversationMuted({ muted_until: '2026-10-12T12:30:00.000Z' }, 'menu', now)).toBe(false);
     expect(isConversationMuted({ muted_until: '2026-10-12T11:30:00.000Z' }, 'oi', now)).toBe(false);
+  });
+
+  it('normalizes interactive menu row ids to the numeric choices expected by the flow', () => {
+    expect(normalizeInteractiveReply('menu_1')).toBe('1');
+    expect(normalizeInteractiveReply('menu_6')).toBe('6');
+    expect(normalizeInteractiveReply('menu_0')).toBe('0');
+    expect(normalizeInteractiveReply('2')).toBe('2');
+    expect(normalizeInteractiveReply('support')).toBe('support');
   });
 });
