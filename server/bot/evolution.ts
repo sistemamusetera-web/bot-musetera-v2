@@ -47,21 +47,17 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
   const cleanInstance = normalizeInstanceName(resolvedInstance);
   const url = `${normalized.baseUrl}/message/sendText/${encodeURIComponent(cleanInstance)}`;
   const isHttp = url.startsWith("http://");
-  console.log("[evolution] sendText →", {
-    url,
+  // Avoid logging customer phone numbers, message content, or credential metadata.
+  console.log("[evolution] sending WhatsApp text", {
     instance: cleanInstance,
-    number,
-    textPreview: text.slice(0, 60),
     isHttp,
     normalizedFromDashboardUrl: normalized.normalizedFromDashboardUrl,
-    apiKeyLength: cleanApiKey.length,
   });
 
   // Retry on 409 only (instance temporarily locked/busy after a recent inbound event).
   // 403 is now treated as final — repeated 403s usually mean an edge firewall (fail2ban,
   // Cloudflare, iptables) is blocking us, and retrying just makes the ban worse.
   const retryDelaysMs = [800];
-  let lastErrorBody = "";
   let lastStatus = 0;
 
   for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
@@ -76,26 +72,21 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
       });
 
       const data = await res.json().catch(() => ({}));
-      console.log(
-        "[evolution] sendText ← status",
-        res.status,
-        "attempt:",
-        attempt + 1,
-        "body:",
-        JSON.stringify(data).slice(0, 500),
-      );
+      console.log("[evolution] sendText response", {
+        status: res.status,
+        attempt: attempt + 1,
+      });
 
       if (res.ok) {
         return { ok: true, id: data?.key?.id ?? data?.messageId };
       }
 
       lastStatus = res.status;
-      lastErrorBody = JSON.stringify(data);
 
       // Only retry on 409 (instance busy). 403 is treated as final — see comment above.
       const shouldRetry = res.status === 409 && attempt < retryDelaysMs.length;
       if (!shouldRetry) {
-        console.error(`[evolution] HTTP ${res.status} from ${url} (final)`, data);
+        console.error("[evolution] sendText request failed", { status: res.status });
         if (res.status === 401 || res.status === 403) {
           return {
             ok: false,
@@ -103,19 +94,16 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
               `Evolution returned ${res.status}. Empty body usually means the request was blocked by a firewall (fail2ban / Cloudflare / iptables) on the Evolution server before reaching the API. Check the VPS firewall and allowlist the Lovable server IP, or expose Evolution behind HTTPS+domain.`,
           };
         }
-        return { ok: false, error: `Evolution API error ${res.status}: ${lastErrorBody}` };
+        return { ok: false, error: `Evolution API error ${res.status}` };
       }
 
       const delay = retryDelaysMs[attempt];
       console.warn(`[evolution] HTTP ${res.status} — retrying in ${delay}ms (attempt ${attempt + 1}/${retryDelaysMs.length})`);
       await sleep(delay);
     } catch (err) {
-      console.error("[evolution] fetch threw exception", {
-        url,
-        isHttp,
+      console.error("[evolution] fetch failed", {
         attempt: attempt + 1,
         errorName: err instanceof Error ? err.name : typeof err,
-        errorMessage: err instanceof Error ? err.message : String(err),
       });
       // Network errors: retry too, with the same backoff.
       if (attempt >= retryDelaysMs.length) {
@@ -125,7 +113,7 @@ export async function sendWhatsAppText({ number, text, instance, apiKey }: SendT
     }
   }
 
-  return { ok: false, error: `Evolution API error ${lastStatus} after retries: ${lastErrorBody}` };
+  return { ok: false, error: `Evolution API error ${lastStatus} after retries` };
 }
 
 // ---------- Interactive messages (buttons / list) ----------
@@ -179,7 +167,7 @@ export async function sendWhatsAppButtons(opts: {
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    console.log("[evolution] sendButtons ←", res.status, JSON.stringify(data).slice(0, 300));
+    console.log("[evolution] sendButtons response", { status: res.status });
     if (res.ok) return { ok: true, id: (data as any)?.key?.id };
     // Fallback to plain text on any failure
     const fb = await sendWhatsAppText({ number: opts.number, text: opts.text });
@@ -229,7 +217,7 @@ export async function sendWhatsAppList(opts: {
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    console.log("[evolution] sendList ←", res.status, JSON.stringify(data).slice(0, 300));
+    console.log("[evolution] sendList response", { status: res.status });
     if (res.ok) return { ok: true, id: (data as any)?.key?.id };
     const fb = await sendWhatsAppText({ number: opts.number, text: opts.text });
     return { ok: fb.ok, id: fb.id, error: fb.error, fallback: true };

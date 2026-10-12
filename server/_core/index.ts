@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import type { Request, Response } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -9,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleEvolutionWebhook } from "../bot/webhook-handler";
+import { handleMercadoPagoWebhook } from "../bot/mercadopago-webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,17 +35,33 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
+  app.use(express.json({
+    limit: "50mb",
+    verify: (req, _res, buffer) => {
+      // Preserve the exact bytes so webhook HMAC checks use the received body,
+      // not a re-serialized JSON object.
+      (req as typeof req & { rawBody?: string }).rawBody = buffer.toString("utf8");
+    },
+  }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   app.get('/api/webhooks/evolution', (_req, res) => res.json({ ok: true, service: 'musetera-bot' }));
   app.post('/api/webhooks/evolution', (req, res) => {
     handleEvolutionWebhook(req, res).catch(error => {
-      console.error('[webhook] unhandled error', error);
+      console.error('[webhook] unhandled error', error instanceof Error ? error.message : 'unknown error');
       if (!res.headersSent) res.status(500).json({ ok: false, error: 'internal webhook error' });
     });
   });
+  // Mercado Pago sends notifications to both historical URLs configured by the bot.
+  const mercadoPagoWebhook = (req: Request, res: Response) => {
+    handleMercadoPagoWebhook(req, res).catch(error => {
+      console.error('[mercadopago-webhook] unhandled error', error instanceof Error ? error.message : 'unknown error');
+      if (!res.headersSent) res.status(503).json({ ok: false, error: 'payment notification unavailable' });
+    });
+  };
+  app.post('/api/public/mp-webhook', mercadoPagoWebhook);
+  app.post('/api/webhooks/mercadopago', mercadoPagoWebhook);
   // tRPC API
   app.use(
     "/api/trpc",

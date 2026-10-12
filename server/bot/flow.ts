@@ -154,10 +154,10 @@ export const pixSuccess = (plan: PlanInfo, payUrl: string) =>
 🔗 ${payUrl}
 
 ⏰ Expira em 30 min
-📩 Envie o comprovante após pagar
-📝 Faça seu cadastro digitando *6*
+🔔 A confirmação do pagamento é automática. Aguarde nossa mensagem após pagar.
+🔐 Para proteger seus dados, faça o cadastro pelo portal: https://portal.musetera.com.br/login
 
-_Digite *menu* para voltar._`;
+_Não envie senhas pelo WhatsApp._`;
 
 export const creditSuccess = (plan: PlanInfo, checkoutUrl: string) =>
   `💳 *Pagamento por cartão — Mercado Pago*
@@ -167,16 +167,16 @@ export const creditSuccess = (plan: PlanInfo, checkoutUrl: string) =>
 🔗 ${checkoutUrl}
 
 ✨ Até 12x • Mercado Pago
-📩 Envie o comprovante após pagar
-📝 Faça seu cadastro digitando *6*
+🔔 A confirmação do pagamento é automática. Aguarde nossa mensagem após pagar.
+🔐 Para proteger seus dados, faça o cadastro pelo portal: https://portal.musetera.com.br/login
 
-_Digite *menu* para voltar._`;
+_Não envie senhas pelo WhatsApp._`;
 
 export const PIX_ERROR =
   "❌ Não foi possível gerar o PIX. Tente novamente ou digite *2* para falar com o suporte.";
 
 export const paymentApproved = (planLabel: string, amountLabel: string, paymentId: string) =>
-  `✅ *Pagamento confirmado!*\n\n📦 Plano: *${planLabel}*\n💰 Valor: *${amountLabel}*\n🆔 ID: ${paymentId}\n\nObrigado pela confiança! 💙\n\n👉 *Próximo passo:* digite *6* para criar seu cadastro e liberar o acesso à plataforma.`;
+  `✅ *Pagamento confirmado!*\n\n📦 Plano: *${planLabel}*\n💰 Valor: *${amountLabel}*\n🆔 ID: ${paymentId}\n\nObrigado pela confiança! 💙\n\n👉 *Próximo passo:* conclua seu cadastro pelo portal seguro: https://portal.musetera.com.br/login. O pagamento confirmado não substitui o cadastro.`;
 
 export const INVALID_OPTION =
   "⚠️ Opção inválida. Digite o número da opção ou *menu* para voltar.";
