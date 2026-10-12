@@ -31,12 +31,7 @@ export async function createPixPayment(input: PixInput): Promise<PixResult> {
     console.error("[mercadopago] missing MERCADOPAGO_ACCESS_TOKEN");
     return { ok: false, code: "config", message: "Gateway PIX não configurado" };
   }
-  console.log("[mercadopago] token check", {
-    length: token.length,
-    prefix: token.slice(0, 8),
-    isProd: token.startsWith("APP_USR-"),
-    isTest: token.startsWith("TEST-"),
-  });
+  // Never log access-token fragments or token metadata.
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
