@@ -51,6 +51,31 @@ describe('webhook safety and routing helpers', () => {
     expect(normalizeInteractiveReply('2')).toBe('2');
     expect(normalizeInteractiveReply('support')).toBe('support');
   });
+  it('uses the original raw request body when validating Evolution webhook signatures', async () => {
+    const original = process.env.WEBHOOK_SHARED_TOKEN;
+    process.env.WEBHOOK_SHARED_TOKEN = 'raw-body-secret';
+    const raw = ' { "event" : "messages.update" } ';
+    const signature = createHmac('sha256', 'raw-body-secret').update(raw).digest('hex');
+    const response = {
+      statusCode: 200,
+      body: undefined as unknown,
+      status(code: number) { this.statusCode = code; return this; },
+      json(body: unknown) { this.body = body; return this; },
+    };
+    await handleEvolutionWebhook({
+      headers: { 'x-webhook-signature': `sha256=${signature}` },
+      query: {},
+      body: { event: 'messages.update' },
+      rawBody: raw,
+      path: '/api/webhooks/evolution',
+      ip: '127.0.0.1',
+    } as never, response as never);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ ok: true, ignored: 'messages.update' });
+    if (original === undefined) delete process.env.WEBHOOK_SHARED_TOKEN;
+    else process.env.WEBHOOK_SHARED_TOKEN = original;
+  });
+
   it('verifies Mercado Pago webhook signatures using the documented manifest', () => {
     const secret = 'test-webhook-secret';
     const dataId = '123456789';
