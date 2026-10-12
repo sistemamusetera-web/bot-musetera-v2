@@ -21,6 +21,12 @@ type Conversation = { id: string; phone: string; contact_name: string | null; cu
 function json(res: Response, body: unknown, status = 200) { return res.status(status).json(body); }
 export function cleanInstance(value?: string) { return value?.trim().replace(/^\/+|\/+$/g, '').split('/').filter(Boolean).at(-1); }
 
+export function normalizeInteractiveReply(value: unknown): string {
+  const text = String(value ?? '').trim();
+  const menuOption = /^menu_([0-6])$/i.exec(text);
+  return menuOption ? menuOption[1] : text;
+}
+
 export function isConversationMuted(
   conversation: Pick<Conversation, 'muted_until'>,
   text: string,
@@ -152,7 +158,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   const data = payload.data ?? {};
   const phone = normalizePhone(data?.key?.remoteJid);
   if (!phone || data?.key?.fromMe) return json(res, { ok: true, ignored: !phone ? 'no-phone' : 'from-me' });
-  const text = String(data?.message?.conversation ?? data?.message?.extendedTextMessage?.text ?? data?.message?.buttonsResponseMessage?.selectedButtonId ?? data?.message?.listResponseMessage?.singleSelectReply?.selectedRowId ?? '').trim();
+  const text = normalizeInteractiveReply(data?.message?.conversation ?? data?.message?.extendedTextMessage?.text ?? data?.message?.buttonsResponseMessage?.selectedButtonId ?? data?.message?.listResponseMessage?.singleSelectReply?.selectedRowId);
   if (!text) return json(res, { ok: true, ignored: 'no-text' });
   const conversation = await getOrCreate(phone, data?.pushName);
   await addMessage(conversation.id, 'inbound', 'user', text, data?.key?.id);
