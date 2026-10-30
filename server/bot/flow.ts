@@ -16,52 +16,58 @@ export const REACTIVATION_WORDS = ["menu", "início", "inicio", "oi", "olá", "o
 
 // ===== WELCOME (etapa antes do menu) =====
 
-export const WELCOME_TEXT = `🎵 *MuseTera* — _Sistema Para Musicoterapeutas_
+export const WELCOME_TEXT = `🎵 *MuseTera* 🎶
+_Sistema para Musicoterapeutas_ ✨
 
-Olá! 👋 Você já é cliente MuseTera?
+Olá! 👋 Que bom te ver por aqui! 💙
+Você já é cliente MuseTera? 👇
 
-*1* ✅ Já sou cliente
-*2* 🌟 Quero conhecer
+1️⃣ ✅ *Já sou cliente*
+2️⃣ 🌟 *Quero conhecer*
 
-_Toque um botão ou digite o número._`;
+👆 _Toque um botão ou digite o número._`;
 
 export const WELCOME_BUTTONS = [
   { id: "welcome_client", title: "✅ Já sou cliente" },
   { id: "welcome_new", title: "🌟 Quero conhecer" },
 ] as const;
 
-export const MAIN_MENU = `🎵 *MuseTera* — _Sistema Para Musicoterapeutas_
+export const MAIN_MENU = `🎵 *MuseTera* 🎶
+_Sistema para Musicoterapeutas_ ✨
 
-Olá! 👋 Como posso te ajudar hoje?
+Olá! 👋 Seja bem-vindo(a)! 💙
+Como posso te ajudar hoje? 👇
 
-*1* 💬 Falar com suporte
-*2* 💳 Planos e pagamentos
-*3* 🐞 Reportar um bug
-*4* ✨ Como funciona?
-*5* 🔄 Renovar plano
+━━━━━━━━━━━━━━
+1️⃣ 💬 *Falar com suporte*
+2️⃣ 💳 *Planos e pagamentos*
+3️⃣ 🐞 *Reportar um bug*
+4️⃣ ✨ *Como funciona?*
+5️⃣ 🔄 *Renovar plano*
+━━━━━━━━━━━━━━
 
-_Digite o número da opção._
-_*0* encerrar • *menu* voltar_`;
+👆 _Digite o número da opção_
+⏸️ *0* encerrar • 🔙 *menu* voltar`;
 
 // ===== MENU PRINCIPAL — versão para LIST interativa do WhatsApp =====
 
-export const MAIN_MENU_LIST_TEXT = `Por aqui você pode resolver tudo em segundos. ✨
+export const MAIN_MENU_LIST_TEXT = `✨ Por aqui você resolve tudo em segundos! 🚀
 
-➡️ *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *5*).
+👇 *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *5*).
 
-_Atalhos:_ digite *1* para falar com atendente, *0* para encerrar, *menu* para voltar.`;
+⚡ _Atalhos:_ *1* 💬 suporte • *0* ⏸️ encerrar • *menu* 🔙 voltar`;
 
 export const MAIN_MENU_LIST_BUTTON = "📋 Menu de opções";
 
 export const MAIN_MENU_SECTIONS = [
   {
-    title: "Como podemos te ajudar?",
+    title: "Como podemos te ajudar? 💙",
     rows: [
-      { id: "menu_1", title: "1️⃣ Falar com o suporte", description: "Atendimento humano em minutos" },
-      { id: "menu_2", title: "2️⃣ Planos e pagamentos", description: "Conheça nossos valores" },
-      { id: "menu_3", title: "3️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente" },
-      { id: "menu_4", title: "4️⃣ Como funciona?", description: "Tour completo pela plataforma" },
-      { id: "menu_5", title: "5️⃣ Renovar plano", description: "Renove sua assinatura MuseTera" },
+      { id: "menu_1", title: "1️⃣ Falar com o suporte", description: "Atendimento humano em minutos 🤝" },
+      { id: "menu_2", title: "2️⃣ Planos e pagamentos", description: "Conheça nossos valores e assine já 🚀" },
+      { id: "menu_3", title: "3️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente 🛠️" },
+      { id: "menu_4", title: "4️⃣ Como funciona?", description: "Tour completo pela plataforma 🎵" },
+      { id: "menu_5", title: "5️⃣ Renovar plano", description: "Renove sua assinatura em segundos ⚡" },
     ],
   },
 ] as const;
@@ -72,13 +78,13 @@ export const SUPPORT_ENTRY =
 export const SUPPORT_WAITING =
   "👨‍💼 Você já está na fila. Um agente responderá em breve.\n\n_Digite *menu* para voltar._";
 
-export const PLANS_TEXT = `💳 *Planos MuseTera*
+export const PLANS_TEXT = `💳 *Planos MuseTera* ✨
 
 🗓️ 30 Dias — *R$ 69,90*
-📅 6 Meses — *R$ 399,00*
-🏆 12 Meses — *R$ 699,00*
+📅 6 Meses — *R$ 399,00* 🔥
+🏆 12 Meses — *R$ 699,00* 👑 _melhor custo-benefício!_
 
-_Para escolher um plano e pagar, digite *2* no menu._`;
+👉 _Para escolher um plano e pagar, digite *2* no menu._`;
 
 // ---- Planos / Pagamento ----
 
@@ -110,35 +116,36 @@ export const PLANS: Record<PlanInfo["id"], PlanInfo> = {
   },
 };
 
-export const PAYMENT_METHOD_PROMPT = `💳 *Planos MuseTera*
+export const PAYMENT_METHOD_PROMPT = `💳 *Planos MuseTera* ✨
 
-Como você prefere pagar?
+Como você prefere pagar? 👇
 
-*1* ⚡ PIX — aprovação na hora
-*2* 💳 Cartão — até 12x
+1️⃣ ⚡ *PIX* — aprovação na hora ✅
+2️⃣ 💳 *Cartão* — em até 12x 🎉
 
-_Digite *menu* para voltar._`;
+🔙 _Digite *menu* para voltar._`;
 
-export const RENEW_PROMPT = `🔄 *Renovar plano*
+export const RENEW_PROMPT = `🔄 *Renovar plano* ✨
 
-Vamos renovar sua assinatura MuseTera. Como você prefere pagar?
+Que bom te ver de volta! 💙
+Vamos renovar sua assinatura MuseTera. Como você prefere pagar? 👇
 
-*1* ⚡ PIX — aprovação na hora
-*2* 💳 Cartão — até 12x
+1️⃣ ⚡ *PIX* — aprovação na hora ✅
+2️⃣ 💳 *Cartão* — em até 12x 🎉
 
-_Digite *menu* para voltar._`;
+🔙 _Digite *menu* para voltar._`;
 
 export const planChoicePrompt = (method: "pix" | "credit") => {
-  const title = method === "pix" ? "⚡ PIX" : "💳 Cartão de crédito";
+  const title = method === "pix" ? "⚡ *PIX*" : "💳 *Cartão de crédito*";
   return `${title}
 
-Escolha seu plano:
+🎯 Escolha seu plano: 👇
 
-*1* 🗓️ 30 Dias — R$ 69,90
-*2* 📅 6 Meses — R$ 399,00
-*3* 🏆 12 Meses — R$ 699,00
+1️⃣ 🗓️ *30 Dias* — R$ 69,90
+2️⃣ 📅 *6 Meses* — R$ 399,00 🔥
+3️⃣ 🏆 *12 Meses* — R$ 699,00 👑 _melhor custo-benefício!_
 
-_Digite *menu* para voltar._`;
+🔙 _Digite *menu* para voltar._`;
 };
 
 export const pixSuccess = (plan: PlanInfo, payUrl: string) =>
