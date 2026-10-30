@@ -40,12 +40,11 @@ export const MAIN_MENU = `🎵 *MuseTera* — _Sistema Para Musicoterapeutas_
 
 Olá! 👋 Como posso te ajudar hoje?
 
-*1* 📅 Agendar apresentação
-*2* 💬 Falar com suporte
-*3* 💳 Planos e pagamentos
-*4* 🐞 Reportar um bug
-*5* ✨ Como funciona?
-*6* 📝 Criar cadastro
+*1* 💬 Falar com suporte
+*2* 💳 Planos e pagamentos
+*3* 🐞 Reportar um bug
+*4* ✨ Como funciona?
+*5* 🔄 Renovação
 
 _Digite o número da opção._
 _*0* encerrar • *menu* voltar_`;
@@ -54,9 +53,9 @@ _*0* encerrar • *menu* voltar_`;
 
 export const MAIN_MENU_LIST_TEXT = `Por aqui você pode resolver tudo em segundos. ✨
 
-➡️ *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *6*).
+➡️ *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *5*).
 
-_Atalhos:_ digite *2* para falar com atendente, *0* para encerrar, *menu* para voltar.`;
+_Atalhos:_ digite *1* para falar com atendente, *0* para encerrar, *menu* para voltar.`;
 
 export const MAIN_MENU_LIST_BUTTON = "📋 Menu de opções";
 
@@ -64,12 +63,11 @@ export const MAIN_MENU_SECTIONS = [
   {
     title: "Como podemos te ajudar?",
     rows: [
-      { id: "menu_1", title: "1️⃣ Agendar apresentação", description: "Reserve sua aula demonstrativa" },
-      { id: "menu_2", title: "2️⃣ Falar com o suporte", description: "Atendimento humano em minutos" },
-      { id: "menu_3", title: "3️⃣ Planos e pagamentos", description: "Conheça nossos valores" },
-      { id: "menu_4", title: "4️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente" },
-      { id: "menu_5", title: "5️⃣ Como funciona?", description: "Tour completo pela plataforma" },
-      { id: "menu_6", title: "6️⃣ Cadastro na plataforma", description: "Crie sua conta agora mesmo" },
+      { id: "menu_1", title: "1️⃣ Falar com o suporte", description: "Atendimento humano em minutos" },
+      { id: "menu_2", title: "2️⃣ Planos e pagamentos", description: "Conheça nossos valores" },
+      { id: "menu_3", title: "3️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente" },
+      { id: "menu_4", title: "4️⃣ Como funciona?", description: "Tour completo pela plataforma" },
+      { id: "menu_5", title: "5️⃣ Renovação", description: "Renove seu plano por PIX ou cartão" }, 
     ],
   },
 ] as const;
@@ -92,7 +90,7 @@ export const PLANS_TEXT = `💳 *Planos MuseTera*
 📅 6 Meses — *R$ 399,00*
 🏆 12 Meses — *R$ 699,00*
 
-_Para escolher um plano e pagar, digite *3* no menu._`;
+_Para escolher um plano e pagar, digite *2* ou *5* no menu._`;
 
 // ---- Planos / Pagamento ----
 
