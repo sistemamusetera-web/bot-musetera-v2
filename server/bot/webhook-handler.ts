@@ -8,6 +8,7 @@ import {
   MAIN_MENU,
   PLANS,
   PAYMENT_METHOD_PROMPT,
+  RENEW_PROMPT,
   planChoicePrompt,
   pixSuccess,
   creditSuccess,
@@ -15,15 +16,9 @@ import {
   INVALID_OPTION,
   SUPPORT_ENTRY,
   HOW_IT_WORKS,
-  SCHEDULE_PROMPT,
   BUG_PROMPT_TEXT,
   BUG_PROMPT_DATE,
   BUG_DONE,
-  REGISTER_PROMPT_NAME,
-  REGISTER_PROMPT_EMAIL,
-  REGISTER_PROMPT_PASSWORD,
-  REGISTER_PROMPT_PHONE,
-  registerSuccess,
   isReactivationWord,
 } from "./flow";
 
@@ -232,26 +227,20 @@ async function replyFor(
     };
   if (step === "main") {
     if (t === "1")
-      return {
-        text: SCHEDULE_PROMPT,
-        next: "schedule_wait_datetime",
-        status: "bot",
-      };
-    if (t === "2")
       return { text: SUPPORT_ENTRY, next: "support_waiting", status: "human" };
-    if (t === "3")
+    if (t === "2")
       return {
         text: PAYMENT_METHOD_PROMPT,
         next: "plans_choose_method",
         status: "bot",
       };
-    if (t === "4")
+    if (t === "3")
       return { text: BUG_PROMPT_TEXT, next: "bug_wait_text", status: "bot" };
-    if (t === "5") return { text: HOW_IT_WORKS, next: "main", status: "bot" };
-    if (t === "6")
+    if (t === "4") return { text: HOW_IT_WORKS, next: "main", status: "bot" };
+    if (t === "5")
       return {
-        text: REGISTER_PROMPT_NAME,
-        next: "register_wait_name",
+        text: RENEW_PROMPT,
+        next: "plans_choose_method",
         status: "bot",
       };
     return { text: MAIN_MENU, next: "main", status: "bot" };
@@ -288,7 +277,7 @@ async function replyFor(
     });
     if (!checkout.ok)
       return {
-        text: "❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *2* para falar com o suporte.",
+        text: "❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *1* para falar com o suporte.",
         next: "main",
         status: "bot",
       };
@@ -340,25 +329,17 @@ async function replyFor(
       },
     };
   }
+  // Steps removed from the menu (schedule, register) fall through to
+  // INVALID_OPTION + "main" below, so in-flight conversations land safely
+  // back on the main menu.
   const prompts: Record<string, string> = {
-    schedule_wait_datetime:
-      "✅ Solicitação recebida! Nossa equipe confirmará o horário em breve.\n\n_Digite *menu* para voltar._",
     support_waiting: "👨‍💼 Você já está na fila. Um agente responderá em breve.",
     bug_wait_text: BUG_PROMPT_DATE,
     bug_wait_date: BUG_DONE,
-    register_wait_name: REGISTER_PROMPT_EMAIL,
-    register_wait_email: REGISTER_PROMPT_PASSWORD,
-    register_wait_password: REGISTER_PROMPT_PHONE,
-    register_wait_phone: registerSuccess("seu e-mail"),
   };
   const next: Record<string, string> = {
-    schedule_wait_datetime: "main",
     bug_wait_text: "bug_wait_date",
     bug_wait_date: "main",
-    register_wait_name: "register_wait_email",
-    register_wait_email: "register_wait_password",
-    register_wait_password: "register_wait_phone",
-    register_wait_phone: "main",
     support_waiting: "support_waiting",
   };
   return {

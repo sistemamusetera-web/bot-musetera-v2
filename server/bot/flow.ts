@@ -1,19 +1,13 @@
 // MuseTera bot conversation flow.
-// Mirrors the Express index.js exactly: same texts, same numbering (1-5 + 0),
-// same multi-step flows. State that the Express version kept in memory
-// (Maps) is now persisted in the database (handled by webhook.ts).
+// Menu numbering: options 1-5 + 0 (pause). Multi-step state is persisted
+// in the database (handled by webhook-handler.ts).
 
 export type StepId =
   | "main"
   | "welcome"
-  | "schedule_wait_datetime"
   | "support_waiting"
   | "bug_wait_text"
   | "bug_wait_date"
-  | "register_wait_name"
-  | "register_wait_email"
-  | "register_wait_password"
-  | "register_wait_phone"
   | "plans_choose_method"
   | "plans_choose_pix"
   | "plans_choose_credit";
@@ -40,12 +34,11 @@ export const MAIN_MENU = `🎵 *MuseTera* — _Sistema Para Musicoterapeutas_
 
 Olá! 👋 Como posso te ajudar hoje?
 
-*1* 📅 Agendar apresentação
-*2* 💬 Falar com suporte
-*3* 💳 Planos e pagamentos
-*4* 🐞 Reportar um bug
-*5* ✨ Como funciona?
-*6* 📝 Criar cadastro
+*1* 💬 Falar com suporte
+*2* 💳 Planos e pagamentos
+*3* 🐞 Reportar um bug
+*4* ✨ Como funciona?
+*5* 🔄 Renovar plano
 
 _Digite o número da opção._
 _*0* encerrar • *menu* voltar_`;
@@ -54,9 +47,9 @@ _*0* encerrar • *menu* voltar_`;
 
 export const MAIN_MENU_LIST_TEXT = `Por aqui você pode resolver tudo em segundos. ✨
 
-➡️ *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *6*).
+➡️ *Toque no botão* abaixo para abrir o menu, ou digite o número da opção (*1* a *5*).
 
-_Atalhos:_ digite *2* para falar com atendente, *0* para encerrar, *menu* para voltar.`;
+_Atalhos:_ digite *1* para falar com atendente, *0* para encerrar, *menu* para voltar.`;
 
 export const MAIN_MENU_LIST_BUTTON = "📋 Menu de opções";
 
@@ -64,21 +57,14 @@ export const MAIN_MENU_SECTIONS = [
   {
     title: "Como podemos te ajudar?",
     rows: [
-      { id: "menu_1", title: "1️⃣ Agendar apresentação", description: "Reserve sua aula demonstrativa" },
-      { id: "menu_2", title: "2️⃣ Falar com o suporte", description: "Atendimento humano em minutos" },
-      { id: "menu_3", title: "3️⃣ Planos e pagamentos", description: "Conheça nossos valores" },
-      { id: "menu_4", title: "4️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente" },
-      { id: "menu_5", title: "5️⃣ Como funciona?", description: "Tour completo pela plataforma" },
-      { id: "menu_6", title: "6️⃣ Cadastro na plataforma", description: "Crie sua conta agora mesmo" },
+      { id: "menu_1", title: "1️⃣ Falar com o suporte", description: "Atendimento humano em minutos" },
+      { id: "menu_2", title: "2️⃣ Planos e pagamentos", description: "Conheça nossos valores" },
+      { id: "menu_3", title: "3️⃣ Reportar um bug", description: "Encontrou um problema? Conte pra gente" },
+      { id: "menu_4", title: "4️⃣ Como funciona?", description: "Tour completo pela plataforma" },
+      { id: "menu_5", title: "5️⃣ Renovar plano", description: "Renove sua assinatura MuseTera" },
     ],
   },
 ] as const;
-
-export const SCHEDULE_PROMPT =
-  "📅 *Agendar apresentação*\n\nEnvie a data e o horário desejados (ex: 28/04/2026 14:30).";
-
-export const scheduleConfirmation = (datetime: string) =>
-  `✅ *Apresentação agendada!*\n\n📌 ${datetime}\n\n_Digite *menu* para voltar._`;
 
 export const SUPPORT_ENTRY =
   "💬 *Suporte humano*\n\nUm atendente foi notificado e responderá em breve.\n\n_Digite *menu* para voltar._";
@@ -92,7 +78,7 @@ export const PLANS_TEXT = `💳 *Planos MuseTera*
 📅 6 Meses — *R$ 399,00*
 🏆 12 Meses — *R$ 699,00*
 
-_Para escolher um plano e pagar, digite *3* no menu._`;
+_Para escolher um plano e pagar, digite *2* no menu._`;
 
 // ---- Planos / Pagamento ----
 
@@ -133,6 +119,15 @@ Como você prefere pagar?
 
 _Digite *menu* para voltar._`;
 
+export const RENEW_PROMPT = `🔄 *Renovar plano*
+
+Vamos renovar sua assinatura MuseTera. Como você prefere pagar?
+
+*1* ⚡ PIX — aprovação na hora
+*2* 💳 Cartão — até 12x
+
+_Digite *menu* para voltar._`;
+
 export const planChoicePrompt = (method: "pix" | "credit") => {
   const title = method === "pix" ? "⚡ PIX" : "💳 Cartão de crédito";
   return `${title}
@@ -155,7 +150,6 @@ export const pixSuccess = (plan: PlanInfo, payUrl: string) =>
 
 ⏰ Expira em 30 min
 📩 Envie o comprovante após pagar
-📝 Faça seu cadastro digitando *6*
 
 _Digite *menu* para voltar._`;
 
@@ -168,15 +162,14 @@ export const creditSuccess = (plan: PlanInfo, checkoutUrl: string) =>
 
 ✨ Até 12x • Mercado Pago
 📩 Envie o comprovante após pagar
-📝 Faça seu cadastro digitando *6*
 
 _Digite *menu* para voltar._`;
 
 export const PIX_ERROR =
-  "❌ Não foi possível gerar o PIX. Tente novamente ou digite *2* para falar com o suporte.";
+  "❌ Não foi possível gerar o PIX. Tente novamente ou digite *1* para falar com o suporte.";
 
 export const paymentApproved = (planLabel: string, amountLabel: string, paymentId: string) =>
-  `✅ *Pagamento confirmado!*\n\n📦 Plano: *${planLabel}*\n💰 Valor: *${amountLabel}*\n🆔 ID: ${paymentId}\n\nObrigado pela confiança! 💙\n\n👉 *Próximo passo:* digite *6* para criar seu cadastro e liberar o acesso à plataforma.`;
+  `✅ *Pagamento confirmado!*\n\n📦 Plano: *${planLabel}*\n💰 Valor: *${amountLabel}*\n🆔 ID: ${paymentId}\n\nObrigado pela confiança! 💙\n\n👉 Acesse a plataforma: https://portal.musetera.com.br/login\n\nQualquer dúvida, digite *1* para falar com o suporte.`;
 
 export const INVALID_OPTION =
   "⚠️ Opção inválida. Digite o número da opção ou *menu* para voltar.";
@@ -210,35 +203,6 @@ _Digite *menu* para voltar._`;
 
 export const MUTE_NOTICE =
   "🔔 Atendimento automático pausado por 1h. Digite *menu* para reativar.";
-
-// ---- Cadastro (registro na plataforma MuseTera) ----
-
-export const REGISTER_PROMPT_NAME =
-  "📝 *Cadastro MuseTera*\n\nVamos criar sua conta. Digite *menu* para cancelar.\n\n👤 Qual é o seu *nome completo*?";
-
-export const REGISTER_PROMPT_EMAIL =
-  "📧 Envie seu *e-mail* (ex: nome@email.com).";
-
-export const REGISTER_PROMPT_PASSWORD =
-  "🔒 Crie uma *senha* (mín. 6 caracteres).\n\n_Recomendamos trocá-la após o primeiro acesso._";
-
-export const REGISTER_PROMPT_PHONE =
-  "📱 Envie seu *telefone* (+5511999999999) ou digite *pular*.";
-
-export const registerSuccess = (email: string) =>
-  `✅ *Cadastro enviado!*\n\nAguardando aprovação do administrador.\nLiberação será enviada para: ${email}\n\n🔗 https://portal.musetera.com.br/login\n\n_Digite *menu* para voltar._`;
-
-export const REGISTER_ERROR_EMAIL_EXISTS =
-  "⚠️ E-mail já cadastrado.\n\nAcesse https://portal.musetera.com.br/login ou digite *menu* para voltar.";
-
-export const registerErrorInvalid = (field: string, reason: string) =>
-  `⚠️ ${field} inválido: ${reason}\n\nTente novamente ou digite *menu* para cancelar.`;
-
-export const REGISTER_ERROR_RATE_LIMIT =
-  "⚠️ Muitas tentativas. Aguarde alguns minutos ou digite *2* para falar com o suporte.";
-
-export const REGISTER_ERROR_GENERIC =
-  "❌ Não foi possível concluir o cadastro. Tente novamente ou digite *2* para falar com o suporte.";
 
 export function isReactivationWord(text: string): boolean {
   return REACTIVATION_WORDS.includes(text.trim().toLowerCase());
