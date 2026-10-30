@@ -7,7 +7,7 @@ import { createCardCheckout, createPixPayment } from './mercadopago';
 import {
   MAIN_MENU, PLANS, PAYMENT_METHOD_PROMPT, planChoicePrompt, pixSuccess,
   creditSuccess, PIX_ERROR, INVALID_OPTION, SUPPORT_ENTRY, HOW_IT_WORKS,
-  SCHEDULE_PROMPT, BUG_PROMPT_TEXT, BUG_PROMPT_DATE, BUG_DONE,
+  BUG_PROMPT_TEXT, BUG_PROMPT_DATE, BUG_DONE,
   REGISTER_PROMPT_NAME, REGISTER_PROMPT_EMAIL, REGISTER_PROMPT_PASSWORD,
   REGISTER_PROMPT_PHONE, registerSuccess, isReactivationWord,
 } from './flow';
@@ -23,7 +23,7 @@ export function cleanInstance(value?: string) { return value?.trim().replace(/^\
 
 export function normalizeInteractiveReply(value: unknown): string {
   const text = String(value ?? '').trim();
-  const menuOption = /^menu_([0-6])$/i.exec(text);
+  const menuOption = /^menu_([1-5])$/i.exec(text);
   return menuOption ? menuOption[1] : text;
 }
 
@@ -114,16 +114,10 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
   }
   if (t === '0') return { text: '🔕 Atendimento pausado por 1 hora. Digite *menu* para reativar.', next: step, status: 'bot', muted: new Date(Date.now() + MUTE_MS).toISOString() };
   if (step === 'main') {
-    if (t === '1') return { text: SCHEDULE_PROMPT, next: 'schedule_wait_datetime', status: 'bot' };
-    if (t === '2') return { text: SUPPORT_ENTRY, next: 'support_waiting', status: 'human' };
-    if (t === '3') return { text: PAYMENT_METHOD_PROMPT, next: 'plans_choose_method', status: 'bot' };
-    if (t === '4') return { text: BUG_PROMPT_TEXT, next: 'bug_wait_text', status: 'bot' };
-    if (t === '5') return { text: HOW_IT_WORKS, next: 'main', status: 'bot' };
-    if (t === '6') return {
-      text: '🔐 Para proteger seus dados, não envie senhas pelo WhatsApp. Inicie seu cadastro pelo portal seguro: https://portal.musetera.com.br/login. Se precisar de ajuda, digite *2* para falar com o suporte.',
-      next: 'main',
-      status: 'bot',
-    };
+    if (t === '1') return { text: SUPPORT_ENTRY, next: 'support_waiting', status: 'human' };
+    if (t === '2' || t === '5') return { text: PAYMENT_METHOD_PROMPT, next: 'plans_choose_method', status: 'bot' };
+    if (t === '3') return { text: BUG_PROMPT_TEXT, next: 'bug_wait_text', status: 'bot' };
+    if (t === '4') return { text: HOW_IT_WORKS, next: 'main', status: 'bot' };
     return { text: MAIN_MENU, next: 'main', status: 'bot' };
   }
   if (step === 'plans_choose_method') {
@@ -136,7 +130,7 @@ async function replyFor(conversation: Conversation, text: string): Promise<{ tex
     if (!plan) return { text: planChoicePrompt('credit'), next: step, status: 'bot' };
     const externalReference = `musetera-${conversation.id}-${Date.now()}`;
     const checkout = await createCardCheckout({ amount: plan.price, description: `MuseTera ${plan.label}`, externalReference });
-    if (!checkout.ok) return { text: '❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *2* para falar com o suporte.', next: 'main', status: 'bot' };
+    if (!checkout.ok) return { text: '❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *1* para falar com o suporte.', next: 'main', status: 'bot' };
     return {
       text: creditSuccess(plan, checkout.checkoutUrl),
       next: 'main',
