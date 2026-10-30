@@ -33,7 +33,10 @@
 - Registro `financeiro` já criado no Supabase `tvmffyfjdfwywsufjllv` como ativo, sujeito à integração do backend publicado.
 - [x] Limitação autorizada: não migrar conversas, mensagens, estados e cobranças PIX históricas por falta de acesso ao Supabase de origem.
 - [x] Concluir preparação da implantação para novos atendimentos no Supabase `tvmffyfjdfwywsufjllv`; ativação pública requer Publish.
-- [ ] Corrigir bug: mensagem enviada ao número `558185436981` não gerou resposta do bot publicado.
+- [x] Corrigir bug: mensagem enviada ao número `558185436981` não gerou resposta do bot publicado.
+  - Causa (diagnóstico de 30/10/2026, verificado ao vivo): o webhook da Evolution apontava para a publicação antiga (`museterabot-rlburgyg.manus.space`) e o handler rejeitava com 401 qualquer webhook sem o `WEBHOOK_SHARED_TOKEN`, que a Evolution não envia por padrão.
+  - Correção na branch `fix/webhook-evolution-auth`: o webhook passa a aceitar também a `apikey` que a Evolution envia no corpo (validada contra `EVOLUTION_API_KEY`), HMAC calculado sobre o corpo bruto, rota aceita o sufixo do modo "por eventos" e o log de rejeição mostra quais sinais de autenticação chegaram. Testes do webhook: 7/7 passando; typecheck limpo.
+  - Para ativar em produção: publicar a correção e seguir `docs/webhook-evolution-setup.md` (apontar o webhook da instância `financeiro` para `botmusetera-nryykggd.manus.space`).
 - [x] Atualizar preços dos planos: 30 dias R$ 69,90; 6 meses R$ 399,00; 12 meses R$ 699,00.
 - [x] Validar textos, configuração do Mercado Pago, testes e build após a alteração; não foi criada cobrança real durante o teste.
 - [x] Enviar todas as atualizações do projeto ao repositório GitHub conectado sem incluir segredos.

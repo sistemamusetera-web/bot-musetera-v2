@@ -87,34 +87,68 @@ export async function resolveInstance(
   return fallback ? { instance: fallback } : null;
 }
 
+function safeEqual(supplied: string, expected: string) {
+  if (!supplied || !expected || supplied.length !== expected.length)
+    return false;
+  try {
+    return timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
 export function validWebhook(req: Request, raw: string) {
   const secret = process.env.WEBHOOK_SHARED_TOKEN?.trim();
-  if (!secret) return false;
-  const signature = String(
-    req.headers["x-webhook-signature"] ?? req.headers["x-signature"] ?? ""
-  );
-  if (signature) {
-    const expected = createHmac("sha256", secret).update(raw).digest("hex");
-    const supplied = signature.replace(/^sha256=/i, "").trim();
-    try {
-      return (
-        supplied.length === expected.length &&
-        timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
-      );
-    } catch {
-      return false;
+  if (secret) {
+    // Method 1 (preferred): HMAC signature over the exact raw request body.
+    const signature = String(
+      req.headers["x-webhook-signature"] ?? req.headers["x-signature"] ?? ""
+    );
+    if (signature) {
+      const expected = createHmac("sha256", secret).update(raw).digest("hex");
+      const supplied = signature.replace(/^sha256=/i, "").trim();
+      return safeEqual(supplied, expected);
     }
+    // Method 2: shared token via header or ?token= on the webhook URL.
+    const supplied = String(
+      req.headers["x-webhook-token"] ??
+        req.headers["x-webhook-secret"] ??
+        req.query.token ??
+        ""
+    );
+    if (supplied && safeEqual(supplied, secret)) return true;
   }
-  const supplied = String(
-    req.headers["x-webhook-token"] ??
-      req.headers["x-webhook-secret"] ??
-      req.query.token ??
-      ""
-  );
-  return (
-    supplied.length === secret.length &&
-    timingSafeEqual(Buffer.from(supplied), Buffer.from(secret))
-  );
+  // Method 3: Evolution's native payload key. Evolution API includes the
+  // instance/global `apikey` in every webhook body it posts. A webhook
+  // configured in Evolution with only a URL (no custom headers, no query
+  // token) sends exactly this — accept it when it matches the Evolution key
+  // configured on this server. Without this, a default Evolution webhook
+  // setup is rejected with 401 and the bot never replies.
+  const body = (req as Request & { body?: Record<string, unknown> }).body;
+  const payloadKey =
+    typeof body?.apikey === "string" ? body.apikey.trim() : "";
+  const evolutionKey = process.env.EVOLUTION_API_KEY?.trim() ?? "";
+  if (payloadKey && evolutionKey && safeEqual(payloadKey, evolutionKey))
+    return true;
+  return false;
+}
+
+/** Which auth signals a webhook request carried (names only, never values). */
+export function webhookAuthSignals(req: Request) {
+  const body = (req as Request & { body?: Record<string, unknown> }).body;
+  return {
+    hasSignature: Boolean(
+      req.headers["x-webhook-signature"] ?? req.headers["x-signature"]
+    ),
+    hasToken: Boolean(
+      req.headers["x-webhook-token"] ??
+        req.headers["x-webhook-secret"] ??
+        req.query.token
+    ),
+    hasPayloadApiKey: typeof body?.apikey === "string" && body.apikey !== "",
+    sharedTokenConfigured: Boolean(process.env.WEBHOOK_SHARED_TOKEN?.trim()),
+    evolutionKeyConfigured: Boolean(process.env.EVOLUTION_API_KEY?.trim()),
+  };
 }
 
 export async function getOrCreate(
@@ -335,10 +369,20 @@ async function replyFor(
 }
 
 export async function handleEvolutionWebhook(req: Request, res: Response) {
-  const raw = JSON.stringify(req.body ?? {});
+  // Prefer the exact bytes Evolution sent (captured by the body parser) so
+  // HMAC validation is computed over the real payload, not a re-serialized
+  // copy whose key order/escaping may differ.
+  const raw =
+    (req as Request & { rawBody?: string }).rawBody ??
+    JSON.stringify(req.body ?? {});
   if (!validWebhook(req, raw)) {
     console.warn(
-      JSON.stringify({ event: "webhook_rejected", path: req.path, ip: req.ip })
+      JSON.stringify({
+        event: "webhook_rejected",
+        path: req.path,
+        ip: req.ip,
+        ...webhookAuthSignals(req),
+      })
     );
     return json(
       res,

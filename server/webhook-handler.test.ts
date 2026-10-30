@@ -34,4 +34,34 @@ describe('webhook safety and routing helpers', () => {
     process.env.WEBHOOK_SHARED_TOKEN = original;
 
   });
+
+  it('accepts the shared token supplied as a URL query parameter', () => {
+    const original = process.env.WEBHOOK_SHARED_TOKEN;
+    process.env.WEBHOOK_SHARED_TOKEN = 'expected-token';
+    const request = { headers: {}, query: { token: 'expected-token' }, body: { event: 'messages.upsert' } };
+    expect(validWebhook(request as never, '{"event":"messages.upsert"}')).toBe(true);
+    process.env.WEBHOOK_SHARED_TOKEN = original;
+  });
+
+  it('accepts the apikey Evolution includes in the webhook body (default Evolution setup)', () => {
+    const originalToken = process.env.WEBHOOK_SHARED_TOKEN;
+    const originalKey = process.env.EVOLUTION_API_KEY;
+    delete process.env.WEBHOOK_SHARED_TOKEN;
+    process.env.EVOLUTION_API_KEY = 'evolution-key-123';
+    const request = { headers: {}, query: {}, body: { event: 'messages.upsert', apikey: 'evolution-key-123' } };
+    expect(validWebhook(request as never, '{"event":"messages.upsert"}')).toBe(true);
+    process.env.WEBHOOK_SHARED_TOKEN = originalToken;
+    process.env.EVOLUTION_API_KEY = originalKey;
+  });
+
+  it('rejects a webhook body whose apikey does not match the Evolution key', () => {
+    const originalToken = process.env.WEBHOOK_SHARED_TOKEN;
+    const originalKey = process.env.EVOLUTION_API_KEY;
+    delete process.env.WEBHOOK_SHARED_TOKEN;
+    process.env.EVOLUTION_API_KEY = 'evolution-key-123';
+    const request = { headers: {}, query: {}, body: { event: 'messages.upsert', apikey: 'some-other-key-456' } };
+    expect(validWebhook(request as never, '{"event":"messages.upsert"}')).toBe(false);
+    process.env.WEBHOOK_SHARED_TOKEN = originalToken;
+    process.env.EVOLUTION_API_KEY = originalKey;
+  });
 });

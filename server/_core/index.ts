@@ -33,21 +33,37 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
+  // Configure body parser with larger size limit for file uploads.
+  // Keep the exact raw bytes so webhook HMAC validation can use them.
+  app.use(
+    express.json({
+      limit: "50mb",
+      verify: (req, _res, buf) => {
+        (req as typeof req & { rawBody?: string }).rawBody = buf.toString(
+          "utf-8"
+        );
+      },
+    })
+  );
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   app.get("/api/webhooks/evolution", (_req, res) =>
     res.json({ ok: true, service: "musetera-bot" })
   );
-  app.post("/api/webhooks/evolution", (req, res) => {
-    handleEvolutionWebhook(req, res).catch(error => {
-      console.error("[webhook] unhandled error", error);
-      if (!res.headersSent)
-        res.status(500).json({ ok: false, error: "internal webhook error" });
-    });
-  });
+  // Evolution's "webhook by events" mode appends /<event-name> to the URL
+  // (e.g. /api/webhooks/evolution/messages-upsert); accept that suffix too,
+  // otherwise that configuration ends in a 404 and the bot stays silent.
+  app.post(
+    ["/api/webhooks/evolution", "/api/webhooks/evolution/:eventSlug"],
+    (req, res) => {
+      handleEvolutionWebhook(req, res).catch(error => {
+        console.error("[webhook] unhandled error", error);
+        if (!res.headersSent)
+          res.status(500).json({ ok: false, error: "internal webhook error" });
+      });
+    }
+  );
   for (const path of ["/api/public/mp-webhook", "/api/webhooks/mercadopago"]) {
     app.post(path, (req, res) => {
       handleMercadoPagoWebhook(req, res).catch(error => {
