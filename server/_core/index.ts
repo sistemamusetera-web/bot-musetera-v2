@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleEvolutionWebhook } from "../bot/webhook-handler";
 import { handleMercadoPagoWebhook } from "../bot/payment-webhook";
+import { startRenewalReminderScheduler } from "../bot/reminders";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -99,6 +100,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    startRenewalReminderScheduler();
   });
 }
 

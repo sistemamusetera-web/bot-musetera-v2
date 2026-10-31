@@ -205,6 +205,21 @@ Digite uma senha com pelo menos *6 caracteres*:`;
 export const PASSWORD_INVALID =
   "⚠️ Essa senha não serve: ela precisa ter pelo menos 6 caracteres. Escolha outra, por favor:";
 
+export const renewalReminder = (daysRemaining: number, expiresLabel: string) =>
+  daysRemaining > 1
+    ? `⏰ *Seu plano MuseTera está terminando!*
+
+Faltam *${daysRemaining} dias* — seu acesso vence em *${expiresLabel}*.
+
+Para renovar sem ficar sem acesso, digite *5* aqui no menu (Renovar plano) e siga os passos. 💙
+
+_Se você já renovou, desconsidere esta mensagem._`
+    : `⏰ *Seu plano MuseTera vence amanhã!* (${expiresLabel})
+
+Para não ficar sem acesso, renove agora: digite *5* aqui no menu (Renovar plano) e siga os passos. 💙
+
+_Se você já renovou, desconsidere esta mensagem._`;
+
 export const paymentCustomerPassword = (params: {
   planLabel: string;
   amountLabel: string;
