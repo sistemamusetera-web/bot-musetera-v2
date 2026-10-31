@@ -311,23 +311,47 @@ export const BUG_PROMPT_DATE =
 export const BUG_DONE =
   "✅ *Reporte registrado!*\n\nNossa equipe técnica vai analisar.\n\n_Digite *menu* para voltar._";
 
-export const HOW_IT_WORKS = `✨ *Como usar o MuseTera*
+export const HOW_IT_WORKS = `ℹ️ *Como funciona o Portal MuseTera?* 🎵
 
-*Primeiros passos*
-👤 Cadastre seu perfil profissional
-🖋️ Crie seu carimbo digital
-🧑‍🤝‍🧑 Cadastre seus pacientes
+O portal é a plataforma completa de gestão para musicoterapeutas: você organiza pacientes, sessões, documentos e finanças num só lugar, pelo celular ou computador.
 
-*Processos Musicoterapia*
-📋 Anamnese
-📊 Avaliação
-🎯 Plano Musicoterapêutico
-🎵 Intervenção
-📝 Relatório
+━━━━━━━━━━━━━━━
+🔐 *Como acessar*
+1️⃣ Entre em https://portal.musetera.com.br
+2️⃣ Faça login com seu *e-mail e senha*
+3️⃣ Pronto! Seu painel abre com tudo da sua clínica
 
-_Tudo em: menu *Processos Musicoterapia* > escolha o item._
+_Não tem conta ainda? Digite *2* aqui no menu, escolha um plano e crie seu acesso na hora._
 
-_Digite *menu* para voltar._`;
+━━━━━━━━━━━━━━━
+👥 *Pacientes e atendimentos*
+• Cadastro completo de pacientes
+• 📋 *Anamnese* e avaliação
+• 🗓️ Registro de *sessões* e evolução no histórico
+• ⭐ *Processos Musicoterapia:* anamnese → avaliação → plano musicoterapêutico → intervenção → relatório
+• 🧩 *Devolutiva TEA* e relatórios prontos
+
+━━━━━━━━━━━━━━━
+💰 *Financeiro*
+• Controle de mensalidades e recebimentos
+• Acompanhe quem pagou e o que está pendente
+
+━━━━━━━━━━━━━━━
+🎵 *Recursos para o seu trabalho*
+• 📋 Atividades e 🎮 jogos musicais (inclui jogo de ritmo)
+• 🎧 Frequências binaurais para as sessões
+• 🎯 Objetivos e planos terapêuticos
+• 🤖 *Assistente de IA* para ajudar no dia a dia
+• 🖋️ Carimbo digital e 💾 backup dos seus dados
+
+━━━━━━━━━━━━━━━
+📅 *Sobre o seu plano*
+• Seu acesso fica ativo enquanto o plano estiver válido
+• Está vencendo? Você recebe um aviso aqui no WhatsApp
+• Para renovar, digite *5* — após o pagamento, seu acesso é liberado/atualizado na hora ✅
+
+❓ Ficou alguma dúvida? Digite *1* para falar com o suporte.
+Digite *0* para voltar ao menu principal.`;
 
 export const MUTE_NOTICE =
   "🔔 Atendimento automático pausado por 1h. Digite *menu* para reativar.";
