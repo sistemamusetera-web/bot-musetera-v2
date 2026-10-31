@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLANS, creditSuccess, pixSuccess, paymentAccessGranted, paymentRenewed } from './bot/flow';
+import { PLANS, creditSuccess, pixSuccess, paymentAccessGranted, paymentActivatedExisting, paymentRenewed } from './bot/flow';
 
 describe('financial plan pricing', () => {
   it('uses the approved prices for PIX and Mercado Pago checkout', () => {
@@ -28,6 +28,19 @@ describe('financial plan pricing', () => {
     expect(message).toContain('cliente@email.com');
     expect(message).toContain('Ab3xY9kLmNp2');
     expect(message).toContain('portal.musetera.com.br/login');
+  });
+
+  it('activates a portal-born account without touching its password', () => {
+    const message = paymentActivatedExisting({
+      planLabel: '6 Meses',
+      amountLabel: 'R$ 200,00',
+      expiresLabel: '30/04/2027',
+      email: 'cliente@email.com',
+    });
+    expect(message).toContain('acesso liberado');
+    expect(message).toContain('válido até 30/04/2027');
+    expect(message).toContain('senha que você já usa');
+    expect(message).not.toContain('Senha temporária');
   });
 
   it('renews without touching the password', () => {

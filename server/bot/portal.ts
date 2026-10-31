@@ -1,10 +1,15 @@
 import { randomInt } from "node:crypto";
+import type { User } from "@supabase/supabase-js";
 import { supabaseAdmin } from "../supabase";
 
-// Portal access provisioning: when a payment is approved, the customer gets
-// a Supabase Auth account for the MuseTera portal, a subscription expiry
-// derived from the purchased plan, and (on first access) a temporary
-// password delivered over WhatsApp.
+// Portal access provisioning. The customer is identified by e-mail:
+// - At purchase time the bot checks whether the e-mail already has a
+//   portal account (created on the portal site or by the bot). Unknown
+//   e-mails get the account created right there, before payment.
+// - When the payment is approved, the subscription expiry is recorded
+//   and the customer is notified. Credentials (a temporary password) are
+//   only ever generated for accounts the bot itself created; accounts
+//   born on the portal keep the password their owner chose.
 
 export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim().toLowerCase());
@@ -61,16 +66,9 @@ export function formatDateBR(date: Date): string {
   }).format(date);
 }
 
-export type PortalAccess = {
-  userId: string;
-  /** True when the customer still needs credentials (new account, or a
-   *  previous activation whose confirmation message never landed). */
-  isFirstAccess: boolean;
-  tempPassword?: string;
-  expiresAt: Date;
-};
-
-async function findAuthUserByEmail(email: string) {
+export async function findPortalUserByEmail(
+  email: string
+): Promise<User | undefined> {
   // The customer base is small; scan the first page of users.
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({
     page: 1,
@@ -78,9 +76,62 @@ async function findAuthUserByEmail(email: string) {
   });
   if (error) throw error;
   return data.users.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase()
+    (u) => u.email?.toLowerCase() === email.trim().toLowerCase()
   );
 }
+
+async function ensureProfileRow(userId: string, displayName: string) {
+  // Insert only when absent: never overwrite the name a customer set on
+  // the portal with their WhatsApp name.
+  const profile = await supabaseAdmin.from("profiles").upsert(
+    { id: userId, display_name: displayName },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+  if (profile.error) {
+    console.error("[portal] profile upsert failed", {
+      userId,
+      error: profile.error.message,
+    });
+  }
+}
+
+/**
+ * Creates a portal account for an e-mail the bot did not recognize. The
+ * initial password is random and never delivered: if the purchase is
+ * paid, approval replaces it with the temporary password sent to the
+ * customer; if it is never paid, the account simply has no access.
+ */
+export async function createPortalAccount(params: {
+  email: string;
+  phone: string;
+  displayName: string;
+}): Promise<User> {
+  const email = params.email.trim().toLowerCase();
+  const created = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: generateTempPassword(20),
+    email_confirm: true,
+    user_metadata: { phone: params.phone, origin: "whatsapp-bot" },
+  });
+  if (created.error) throw created.error;
+  await ensureProfileRow(
+    created.data.user.id,
+    params.displayName || params.phone
+  );
+  return created.data.user;
+}
+
+export type PortalAccess = {
+  userId: string;
+  /**
+   * credentials: bot-created account, customer receives a temp password.
+   * existing: portal-created account, its password is never touched.
+   * renewal: this account already received a confirmation before.
+   */
+  kind: "credentials" | "existing" | "renewal";
+  tempPassword?: string;
+  expiresAt: Date;
+};
 
 export async function ensurePortalAccess(params: {
   email: string;
@@ -88,13 +139,24 @@ export async function ensurePortalAccess(params: {
   displayName: string;
   planId: string;
   currentChargeId: string;
+  portalUserId?: string | null;
 }): Promise<PortalAccess> {
   const email = params.email.trim().toLowerCase();
-  let user = await findAuthUserByEmail(email);
+  let user: User | undefined;
+  if (params.portalUserId) {
+    const byId = await supabaseAdmin.auth.admin.getUserById(
+      params.portalUserId
+    );
+    if (!byId.error) user = byId.data.user;
+  }
+  if (!user) user = await findPortalUserByEmail(email);
+
+  let kind: PortalAccess["kind"];
   let tempPassword: string | undefined;
-  let isFirstAccess = false;
 
   if (!user) {
+    // The account vanished between purchase and approval (or the
+    // purchase-time creation failed): create it now, with credentials.
     tempPassword = generateTempPassword();
     const created = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -104,11 +166,8 @@ export async function ensurePortalAccess(params: {
     });
     if (created.error) throw created.error;
     user = created.data.user;
-    isFirstAccess = true;
+    kind = "credentials";
   } else {
-    // If no earlier charge for this account ever got its confirmation
-    // delivered, the customer never received a password: reset it and
-    // deliver credentials with this charge instead of a renewal note.
     const prior = await supabaseAdmin
       .from("pix_charges")
       .select("id")
@@ -117,29 +176,25 @@ export async function ensurePortalAccess(params: {
       .neq("id", params.currentChargeId)
       .limit(1);
     if (prior.error) throw prior.error;
-    if (!prior.data || prior.data.length === 0) {
+    const hasConfirmedBefore = !!prior.data && prior.data.length > 0;
+    if (hasConfirmedBefore) {
+      kind = "renewal";
+    } else if (user.user_metadata?.origin === "whatsapp-bot") {
+      // Bot-created account whose credentials were never delivered:
+      // (re)set the password so the message carries a working one.
       tempPassword = generateTempPassword();
       const updated = await supabaseAdmin.auth.admin.updateUserById(user.id, {
         password: tempPassword,
       });
       if (updated.error) throw updated.error;
-      isFirstAccess = true;
+      kind = "credentials";
+    } else {
+      // Account created on the portal: never touch its password.
+      kind = "existing";
     }
   }
 
-  const profile = await supabaseAdmin.from("profiles").upsert(
-    {
-      id: user.id,
-      display_name: params.displayName || params.phone,
-    },
-    { onConflict: "id" }
-  );
-  if (profile.error) {
-    console.error("[portal] profile upsert failed", {
-      userId: user.id,
-      error: profile.error.message,
-    });
-  }
+  await ensureProfileRow(user.id, params.displayName || params.phone);
 
   // Renewals stack on top of a still-active subscription instead of
   // restarting from today.
@@ -159,5 +214,5 @@ export async function ensurePortalAccess(params: {
     previousExpiry && previousExpiry > now ? previousExpiry : now;
   const expiresAt = addPlanDuration(base, params.planId);
 
-  return { userId: user.id, isFirstAccess, tempPassword, expiresAt };
+  return { userId: user.id, kind, tempPassword, expiresAt };
 }

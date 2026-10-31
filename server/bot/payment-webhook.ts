@@ -3,7 +3,12 @@ import { z } from "zod";
 import { supabaseAdmin } from "../supabase";
 import { getMercadoPagoPayment } from "./mercadopago";
 import { addMessage, getOrCreate, resolveInstance } from "./webhook-handler";
-import { paymentApproved, paymentAccessGranted, paymentRenewed } from "./flow";
+import {
+  paymentApproved,
+  paymentAccessGranted,
+  paymentActivatedExisting,
+  paymentRenewed,
+} from "./flow";
 import {
   ensurePortalAccess,
   formatDateBR,
@@ -201,6 +206,7 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
         displayName: conversation.contact_name ?? "",
         planId: charge.plan_id ?? planIdFromLabel(charge.plan_label),
         currentChargeId: charge.id,
+        portalUserId: charge.portal_user_id ?? null,
       });
       const activatedAt = new Date().toISOString();
       const activation = await supabaseAdmin
@@ -210,25 +216,34 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
           portal_activated_at: activatedAt,
           subscription_expires_at: access.expiresAt.toISOString(),
           paid_at: activatedAt,
-          is_renewal: !access.isFirstAccess,
+          is_renewal: access.kind === "renewal",
         })
         .eq("id", charge.id);
       if (activation.error) throw activation.error;
       const expiresLabel = formatDateBR(access.expiresAt);
-      text = access.isFirstAccess
-        ? paymentAccessGranted({
-            planLabel: charge.plan_label,
-            amountLabel,
-            expiresLabel,
-            email: charge.customer_email,
-            password: access.tempPassword!,
-          })
-        : paymentRenewed({
-            planLabel: charge.plan_label,
-            amountLabel,
-            expiresLabel,
-            email: charge.customer_email,
-          });
+      if (access.kind === "credentials") {
+        text = paymentAccessGranted({
+          planLabel: charge.plan_label,
+          amountLabel,
+          expiresLabel,
+          email: charge.customer_email,
+          password: access.tempPassword!,
+        });
+      } else if (access.kind === "existing") {
+        text = paymentActivatedExisting({
+          planLabel: charge.plan_label,
+          amountLabel,
+          expiresLabel,
+          email: charge.customer_email,
+        });
+      } else {
+        text = paymentRenewed({
+          planLabel: charge.plan_label,
+          amountLabel,
+          expiresLabel,
+          email: charge.customer_email,
+        });
+      }
     } catch (error) {
       await supabaseAdmin
         .from("pix_charges")

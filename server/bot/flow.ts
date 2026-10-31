@@ -190,6 +190,30 @@ _Ele vai ser o seu login no portal. Digite o e-mail completo, ex: nome@email.com
 export const EMAIL_INVALID =
   "⚠️ Esse e-mail não parece válido. Confira e envie de novo, por favor (ex: nome@email.com).";
 
+export const ACCOUNT_FOUND_NOTICE =
+  "✅ *Conta encontrada!* Reconheci seu e-mail no portal MuseTera — o pagamento será vinculado à sua conta.";
+
+export const ACCOUNT_CREATED_NOTICE =
+  "✅ *Conta criada no portal!* Suas credenciais de acesso chegam aqui assim que o pagamento for confirmado.";
+
+export const paymentActivatedExisting = (params: {
+  planLabel: string;
+  amountLabel: string;
+  expiresLabel: string;
+  email: string;
+}) =>
+  `🎉 *Pagamento confirmado e acesso liberado!*
+
+📦 Plano: *${params.planLabel}*
+💰 Valor: *${params.amountLabel}*
+🗓️ *Acesso válido até ${params.expiresLabel}*
+
+👉 Entre no portal com o e-mail e a senha que você já usa:
+https://portal.musetera.com.br/login
+📧 E-mail da conta: ${params.email}
+
+Qualquer dúvida, digite *1* para falar com o suporte.`;
+
 export const paymentAccessGranted = (params: {
   planLabel: string;
   amountLabel: string;

@@ -21,10 +21,16 @@ import {
   BUG_DONE,
   EMAIL_PROMPT,
   EMAIL_INVALID,
+  ACCOUNT_FOUND_NOTICE,
+  ACCOUNT_CREATED_NOTICE,
   isReactivationWord,
   type PlanInfo,
 } from "./flow";
-import { isValidEmail } from "./portal";
+import {
+  isValidEmail,
+  findPortalUserByEmail,
+  createPortalAccount,
+} from "./portal";
 
 const Payload = z
   .object({ event: z.string().min(1), data: z.unknown().optional() })
@@ -207,6 +213,7 @@ export type PaymentCharge = {
   qrCodeBase64?: string;
   expiresAt?: string;
   customerEmail?: string;
+  portalUserId?: string | null;
 };
 
 type Reply = {
@@ -222,7 +229,9 @@ type Reply = {
 async function startCardCharge(
   conversation: Conversation,
   plan: PlanInfo,
-  email: string
+  email: string,
+  portalUserId: string | null,
+  notice?: string
 ): Promise<Reply> {
   const externalReference = `musetera-${conversation.id}-${Date.now()}`;
   const checkout = await createCardCheckout({
@@ -236,8 +245,9 @@ async function startCardCharge(
       next: "main",
       status: "bot",
     };
+  const base = creditSuccess(plan, checkout.checkoutUrl);
   return {
-    text: creditSuccess(plan, checkout.checkoutUrl),
+    text: notice ? `${notice}\n\n${base}` : base,
     next: "main",
     status: "bot",
     charge: {
@@ -248,6 +258,7 @@ async function startCardCharge(
       externalReference,
       paymentMethod: "card",
       customerEmail: email,
+      portalUserId,
     },
   };
 }
@@ -255,7 +266,9 @@ async function startCardCharge(
 async function startPixCharge(
   conversation: Conversation,
   plan: PlanInfo,
-  email: string
+  email: string,
+  portalUserId: string | null,
+  notice?: string
 ): Promise<Reply> {
   const externalReference = `musetera-${conversation.id}-${Date.now()}`;
   const pix = await createPixPayment({
@@ -264,11 +277,12 @@ async function startPixCharge(
     externalReference,
   });
   if (!pix.ok) return { text: PIX_ERROR, next: "main", status: "bot" };
+  const base = pixSuccess(plan);
   return {
     // The copia-e-cola code goes alone in a follow-up message so the
     // customer can long-press and copy ONLY the code, without the
     // surrounding instructions getting in the way.
-    text: pixSuccess(plan),
+    text: notice ? `${notice}\n\n${base}` : base,
     extraTexts: [pix.qrCode],
     next: "main",
     status: "bot",
@@ -284,6 +298,7 @@ async function startPixCharge(
       expiresAt:
         pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       customerEmail: email,
+      portalUserId,
     },
   };
 }
@@ -376,9 +391,34 @@ async function replyFor(
     // `t` is the trimmed, lowercased message — fine for an e-mail login.
     if (!isValidEmail(t))
       return { text: EMAIL_INVALID, next: step, status: "bot" };
+    // Recognize the portal account for this e-mail, or create it on the
+    // spot; only then does the payment get generated, already linked to
+    // the account. A lookup/creation failure must not block the sale:
+    // approval-time provisioning retries and links the account then.
+    let portalUserId: string | null = null;
+    let notice: string | undefined;
+    try {
+      const existing = await findPortalUserByEmail(t);
+      if (existing) {
+        portalUserId = existing.id;
+        notice = ACCOUNT_FOUND_NOTICE;
+      } else {
+        const created = await createPortalAccount({
+          email: t,
+          phone: conversation.phone,
+          displayName: conversation.contact_name ?? "",
+        });
+        portalUserId = created.id;
+        notice = ACCOUNT_CREATED_NOTICE;
+      }
+    } catch (error) {
+      console.error("[portal] purchase-time account step failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     return emailStep[1] === "pix"
-      ? startPixCharge(conversation, plan, t)
-      : startCardCharge(conversation, plan, t);
+      ? startPixCharge(conversation, plan, t, portalUserId, notice)
+      : startCardCharge(conversation, plan, t, portalUserId, notice);
   }
   // Steps removed from the menu (schedule, register) fall through to
   // INVALID_OPTION + "main" below, so in-flight conversations land safely
@@ -521,6 +561,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
       qr_code: answer.charge.qrCode ?? null,
       qr_code_base64: answer.charge.qrCodeBase64 ?? null,
       customer_email: answer.charge.customerEmail ?? null,
+      portal_user_id: answer.charge.portalUserId ?? null,
       expires_at: answer.charge.expiresAt ?? null,
       phone,
       instance_name: resolved.instance,
