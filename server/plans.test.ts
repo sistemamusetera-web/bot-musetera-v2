@@ -58,15 +58,17 @@ describe('financial plan pricing', () => {
     expect(message).not.toContain('Senha temporária');
   });
 
-  it('renews without touching the password', () => {
+  it('renews without touching the password and shows the updated days', () => {
     const message = paymentRenewed({
       planLabel: '12 Meses',
       amountLabel: 'R$ 400,00',
       expiresLabel: '31/10/2027',
+      daysRemaining: 365,
       email: 'cliente@email.com',
     });
-    expect(message).toContain('renovada');
+    expect(message).toContain('renovada com sucesso');
     expect(message).toContain('até 31/10/2027');
+    expect(message).toContain('*365 dias de acesso*');
     expect(message).not.toContain('Senha temporária');
   });
 

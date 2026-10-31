@@ -269,13 +269,15 @@ export const paymentRenewed = (params: {
   planLabel: string;
   amountLabel: string;
   expiresLabel: string;
+  daysRemaining: number;
   email: string;
 }) =>
-  `🔄 *Assinatura renovada!*
+  `🔄 *Assinatura renovada com sucesso!* 🎉
 
 📦 Plano: *${params.planLabel}*
 💰 Valor: *${params.amountLabel}*
-🗓️ *Seu acesso agora vai até ${params.expiresLabel}*
+🗓️ *Acesso válido até ${params.expiresLabel}*
+⏳ Você tem agora *${params.daysRemaining} ${params.daysRemaining === 1 ? "dia" : "dias"} de acesso*
 
 👉 Acesse com seu e-mail e senha de sempre: https://portal.musetera.com.br/login
 📧 E-mail da conta: ${params.email}

@@ -216,6 +216,7 @@ export type PaymentCharge = {
   expiresAt?: string;
   customerEmail?: string;
   portalUserId?: string | null;
+  isRenewal?: boolean;
 };
 
 type Reply = {
@@ -235,7 +236,8 @@ async function startCardCharge(
   plan: PlanInfo,
   email: string,
   portalUserId: string | null,
-  notice?: string
+  notice?: string,
+  isRenewal = false
 ): Promise<Reply> {
   const externalReference = `musetera-${conversation.id}-${Date.now()}`;
   const checkout = await createCardCheckout({
@@ -263,6 +265,7 @@ async function startCardCharge(
       paymentMethod: "card",
       customerEmail: email,
       portalUserId,
+      isRenewal,
     },
   };
 }
@@ -272,7 +275,8 @@ async function startPixCharge(
   plan: PlanInfo,
   email: string,
   portalUserId: string | null,
-  notice?: string
+  notice?: string,
+  isRenewal = false
 ): Promise<Reply> {
   const externalReference = `musetera-${conversation.id}-${Date.now()}`;
   const pix = await createPixPayment({
@@ -303,6 +307,7 @@ async function startPixCharge(
         pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       customerEmail: email,
       portalUserId,
+      isRenewal,
     },
   };
 }
@@ -331,6 +336,7 @@ async function replyFor(
         text: PAYMENT_METHOD_PROMPT,
         next: "plans_choose_method",
         status: "bot",
+        context: {},
       };
     if (t === "3")
       return { text: BUG_PROMPT_TEXT, next: "bug_wait_text", status: "bot" };
@@ -340,6 +346,9 @@ async function replyFor(
         text: RENEW_PROMPT,
         next: "plans_choose_method",
         status: "bot",
+        // Remember the intent so the approval can answer with the
+        // renewal message (and the charge is flagged as a renewal).
+        context: { renewalIntent: true },
       };
     return { text: MAIN_MENU, next: "main", status: "bot" };
   }
@@ -410,16 +419,20 @@ async function replyFor(
       });
       existing = undefined;
     }
+    const isRenewal = context.renewalIntent === true;
     if (existing) {
-      return emailStep[1] === "pix"
-        ? startPixCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE)
-        : startCardCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE);
+      const reply =
+        emailStep[1] === "pix"
+          ? await startPixCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE, isRenewal)
+          : await startCardCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE, isRenewal);
+      // The charge now carries the intent; clear the flow context.
+      return { ...reply, context: {} };
     }
     return {
       text: PASSWORD_PROMPT,
       next: `senha_${emailStep[1]}_${plan.id}`,
       status: "bot",
-      context: { pendingEmail: t },
+      context: { ...context, pendingEmail: t },
     };
   }
   const senhaStep = /^senha_(pix|card)_(30d|6m|1y)$/.exec(step);
@@ -477,8 +490,8 @@ async function replyFor(
     }
     const reply =
       senhaStep[1] === "pix"
-        ? await startPixCharge(conversation, plan, pendingEmail, portalUserId, notice)
-        : await startCardCharge(conversation, plan, pendingEmail, portalUserId, notice);
+        ? await startPixCharge(conversation, plan, pendingEmail, portalUserId, notice, context.renewalIntent === true)
+        : await startCardCharge(conversation, plan, pendingEmail, portalUserId, notice, context.renewalIntent === true);
     return { ...reply, context: {} };
   }
   // Steps removed from the menu (schedule, register) fall through to
@@ -643,6 +656,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
       qr_code_base64: answer.charge.qrCodeBase64 ?? null,
       customer_email: answer.charge.customerEmail ?? null,
       portal_user_id: answer.charge.portalUserId ?? null,
+      is_renewal: answer.charge.isRenewal ?? false,
       expires_at: answer.charge.expiresAt ?? null,
       phone,
       instance_name: resolved.instance,

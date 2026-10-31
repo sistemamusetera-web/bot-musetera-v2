@@ -37,6 +37,7 @@ type Charge = {
   plan_id?: string | null;
   customer_email?: string | null;
   portal_user_id?: string | null;
+  is_renewal?: boolean | null;
   amount: number;
   status: string;
   external_reference?: string | null;
@@ -45,7 +46,7 @@ type Charge = {
 };
 
 const CHARGE_COLUMNS =
-  "id,phone,instance_name,plan_label,plan_id,customer_email,portal_user_id,amount,status,external_reference,payment_id,confirmation_sent_at";
+  "id,phone,instance_name,plan_label,plan_id,customer_email,portal_user_id,is_renewal,amount,status,external_reference,payment_id,confirmation_sent_at";
 
 function json(res: Response, body: unknown, status = 200) {
   return res.status(status).json(body);
@@ -217,12 +218,31 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
           portal_activated_at: activatedAt,
           subscription_expires_at: access.expiresAt.toISOString(),
           paid_at: activatedAt,
-          is_renewal: access.kind === "renewal",
+          is_renewal: charge.is_renewal === true || access.kind === "renewal",
         })
         .eq("id", charge.id);
       if (activation.error) throw activation.error;
       const expiresLabel = formatDateBR(access.expiresAt);
-      if (access.kind === "credentials") {
+      const daysRemaining = Math.max(
+        0,
+        Math.ceil((access.expiresAt.getTime() - Date.now()) / 86_400_000)
+      );
+      // A renewal is answered as a renewal when the account already had a
+      // delivered confirmation, or when the customer came through the
+      // "Renovar plano" menu with an account born on the portal — except
+      // when credentials still have to be delivered (kinds below win).
+      const isRenewalAnswer =
+        access.kind === "renewal" ||
+        (charge.is_renewal === true && access.kind === "existing");
+      if (isRenewalAnswer) {
+        text = paymentRenewed({
+          planLabel: charge.plan_label,
+          amountLabel,
+          expiresLabel,
+          daysRemaining,
+          email: charge.customer_email,
+        });
+      } else if (access.kind === "credentials") {
         text = paymentAccessGranted({
           planLabel: charge.plan_label,
           amountLabel,
@@ -237,15 +257,10 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
           expiresLabel,
           email: charge.customer_email,
         });
-      } else if (access.kind === "existing") {
-        text = paymentActivatedExisting({
-          planLabel: charge.plan_label,
-          amountLabel,
-          expiresLabel,
-          email: charge.customer_email,
-        });
       } else {
-        text = paymentRenewed({
+        // kind "existing" (and any leftover): first activation of an
+        // account born on the portal.
+        text = paymentActivatedExisting({
           planLabel: charge.plan_label,
           amountLabel,
           expiresLabel,
