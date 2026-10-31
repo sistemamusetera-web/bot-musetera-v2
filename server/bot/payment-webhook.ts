@@ -3,7 +3,12 @@ import { z } from "zod";
 import { supabaseAdmin } from "../supabase";
 import { getMercadoPagoPayment } from "./mercadopago";
 import { addMessage, getOrCreate, resolveInstance } from "./webhook-handler";
-import { paymentApproved } from "./flow";
+import { paymentApproved, paymentAccessGranted, paymentRenewed } from "./flow";
+import {
+  ensurePortalAccess,
+  formatDateBR,
+  planIdFromLabel,
+} from "./portal";
 import { sendWhatsAppText } from "./evolution";
 
 const PaymentNotification = z
@@ -23,12 +28,18 @@ type Charge = {
   phone: string;
   instance_name: string;
   plan_label: string;
+  plan_id?: string | null;
+  customer_email?: string | null;
+  portal_user_id?: string | null;
   amount: number;
   status: string;
   external_reference?: string | null;
   payment_id?: string | null;
   confirmation_sent_at?: string | null;
 };
+
+const CHARGE_COLUMNS =
+  "id,phone,instance_name,plan_label,plan_id,customer_email,portal_user_id,amount,status,external_reference,payment_id,confirmation_sent_at";
 
 function json(res: Response, body: unknown, status = 200) {
   return res.status(status).json(body);
@@ -119,17 +130,13 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
 
   let chargeResult = await supabaseAdmin
     .from("pix_charges")
-    .select(
-      "id,phone,instance_name,plan_label,amount,status,external_reference,payment_id,confirmation_sent_at"
-    )
+    .select(CHARGE_COLUMNS)
     .eq("payment_id", paymentId)
     .maybeSingle();
   if (!chargeResult.data && payment.payment.externalReference) {
     chargeResult = await supabaseAdmin
       .from("pix_charges")
-      .select(
-        "id,phone,instance_name,plan_label,amount,status,external_reference,payment_id,confirmation_sent_at"
-      )
+      .select(CHARGE_COLUMNS)
       .eq("external_reference", payment.payment.externalReference)
       .maybeSingle();
   }
@@ -181,11 +188,62 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
     );
   }
   const conversation = await getOrCreate(charge.phone);
-  const text = paymentApproved(
-    charge.plan_label,
-    `R$ ${Number(charge.amount).toFixed(2).replace(".", ",")}`,
-    paymentId
-  );
+  const amountLabel = `R$ ${Number(charge.amount).toFixed(2).replace(".", ",")}`;
+  let text: string;
+  if (charge.customer_email) {
+    // Provision portal access before notifying: the account and the
+    // subscription expiry are recorded on the charge itself, so a retry
+    // after a failed send never creates a duplicate account.
+    try {
+      const access = await ensurePortalAccess({
+        email: charge.customer_email,
+        phone: charge.phone,
+        displayName: conversation.contact_name ?? "",
+        planId: charge.plan_id ?? planIdFromLabel(charge.plan_label),
+        currentChargeId: charge.id,
+      });
+      const activatedAt = new Date().toISOString();
+      const activation = await supabaseAdmin
+        .from("pix_charges")
+        .update({
+          portal_user_id: access.userId,
+          portal_activated_at: activatedAt,
+          subscription_expires_at: access.expiresAt.toISOString(),
+          paid_at: activatedAt,
+          is_renewal: !access.isFirstAccess,
+        })
+        .eq("id", charge.id);
+      if (activation.error) throw activation.error;
+      const expiresLabel = formatDateBR(access.expiresAt);
+      text = access.isFirstAccess
+        ? paymentAccessGranted({
+            planLabel: charge.plan_label,
+            amountLabel,
+            expiresLabel,
+            email: charge.customer_email,
+            password: access.tempPassword!,
+          })
+        : paymentRenewed({
+            planLabel: charge.plan_label,
+            amountLabel,
+            expiresLabel,
+            email: charge.customer_email,
+          });
+    } catch (error) {
+      await supabaseAdmin
+        .from("pix_charges")
+        .update({ status: "pending" })
+        .eq("id", charge.id);
+      console.error("[mercadopago] portal activation failed", {
+        paymentId,
+        phone: charge.phone,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json(res, { ok: false, error: "portal activation failed" }, 502);
+    }
+  } else {
+    text = paymentApproved(charge.plan_label, amountLabel, paymentId);
+  }
   const sent = await sendWhatsAppText({
     number: charge.phone,
     text,
@@ -212,6 +270,7 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
       status: "approved",
       payment_id: paymentId,
       confirmation_sent_at: confirmedAt,
+      notified_at: confirmedAt,
     })
     .eq("id", charge.id)
     .eq("status", "processing");

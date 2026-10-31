@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLANS, creditSuccess, pixSuccess } from './bot/flow';
+import { PLANS, creditSuccess, pixSuccess, paymentAccessGranted, paymentRenewed } from './bot/flow';
 
 describe('financial plan pricing', () => {
   it('uses the approved prices for PIX and Mercado Pago checkout', () => {
@@ -13,6 +13,33 @@ describe('financial plan pricing', () => {
     expect(message).toContain('R$ 34,90');
     expect(message).toContain('copia e cola');
     expect(message).not.toMatch(/000201|br\.gov\.bcb\.pix/i);
+  });
+
+  it('sends credentials and the validity limit after a first payment', () => {
+    const message = paymentAccessGranted({
+      planLabel: '30 Dias',
+      amountLabel: 'R$ 34,90',
+      expiresLabel: '30/11/2026',
+      email: 'cliente@email.com',
+      password: 'Ab3xY9kLmNp2',
+    });
+    expect(message).toContain('acesso liberado');
+    expect(message).toContain('válido até 30/11/2026');
+    expect(message).toContain('cliente@email.com');
+    expect(message).toContain('Ab3xY9kLmNp2');
+    expect(message).toContain('portal.musetera.com.br/login');
+  });
+
+  it('renews without touching the password', () => {
+    const message = paymentRenewed({
+      planLabel: '12 Meses',
+      amountLabel: 'R$ 400,00',
+      expiresLabel: '31/10/2027',
+      email: 'cliente@email.com',
+    });
+    expect(message).toContain('renovada');
+    expect(message).toContain('até 31/10/2027');
+    expect(message).not.toContain('Senha temporária');
   });
 
   it('renders the Mercado Pago checkout label instead of a legacy provider', () => {

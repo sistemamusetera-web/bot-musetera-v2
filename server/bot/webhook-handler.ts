@@ -19,8 +19,12 @@ import {
   BUG_PROMPT_TEXT,
   BUG_PROMPT_DATE,
   BUG_DONE,
+  EMAIL_PROMPT,
+  EMAIL_INVALID,
   isReactivationWord,
+  type PlanInfo,
 } from "./flow";
+import { isValidEmail } from "./portal";
 
 const Payload = z
   .object({ event: z.string().min(1), data: z.unknown().optional() })
@@ -202,12 +206,10 @@ export type PaymentCharge = {
   qrCode?: string;
   qrCodeBase64?: string;
   expiresAt?: string;
+  customerEmail?: string;
 };
 
-async function replyFor(
-  conversation: Conversation,
-  text: string
-): Promise<{
+type Reply = {
   text: string;
   next: string;
   status: string;
@@ -215,7 +217,81 @@ async function replyFor(
   charge?: PaymentCharge;
   /** Extra messages sent right after the main one (e.g. the bare PIX code). */
   extraTexts?: string[];
-}> {
+};
+
+async function startCardCharge(
+  conversation: Conversation,
+  plan: PlanInfo,
+  email: string
+): Promise<Reply> {
+  const externalReference = `musetera-${conversation.id}-${Date.now()}`;
+  const checkout = await createCardCheckout({
+    amount: plan.price,
+    description: `MuseTera ${plan.label}`,
+    externalReference,
+  });
+  if (!checkout.ok)
+    return {
+      text: "❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *1* para falar com o suporte.",
+      next: "main",
+      status: "bot",
+    };
+  return {
+    text: creditSuccess(plan, checkout.checkoutUrl),
+    next: "main",
+    status: "bot",
+    charge: {
+      planId: plan.id,
+      planLabel: plan.label,
+      amount: plan.price,
+      paymentId: `preference:${checkout.preferenceId}`,
+      externalReference,
+      paymentMethod: "card",
+      customerEmail: email,
+    },
+  };
+}
+
+async function startPixCharge(
+  conversation: Conversation,
+  plan: PlanInfo,
+  email: string
+): Promise<Reply> {
+  const externalReference = `musetera-${conversation.id}-${Date.now()}`;
+  const pix = await createPixPayment({
+    amount: plan.price,
+    description: `MuseTera ${plan.label}`,
+    externalReference,
+  });
+  if (!pix.ok) return { text: PIX_ERROR, next: "main", status: "bot" };
+  return {
+    // The copia-e-cola code goes alone in a follow-up message so the
+    // customer can long-press and copy ONLY the code, without the
+    // surrounding instructions getting in the way.
+    text: pixSuccess(plan),
+    extraTexts: [pix.qrCode],
+    next: "main",
+    status: "bot",
+    charge: {
+      planId: plan.id,
+      planLabel: plan.label,
+      amount: plan.price,
+      paymentId: String(pix.paymentId),
+      externalReference,
+      paymentMethod: "pix",
+      qrCode: pix.qrCode,
+      qrCodeBase64: pix.qrCodeBase64,
+      expiresAt:
+        pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      customerEmail: email,
+    },
+  };
+}
+
+async function replyFor(
+  conversation: Conversation,
+  text: string
+): Promise<Reply> {
   const step = isReactivationWord(text)
     ? "main"
     : conversation.current_menu || "main";
@@ -271,30 +347,12 @@ async function replyFor(
     )[t];
     if (!plan)
       return { text: planChoicePrompt("credit"), next: step, status: "bot" };
-    const externalReference = `musetera-${conversation.id}-${Date.now()}`;
-    const checkout = await createCardCheckout({
-      amount: plan.price,
-      description: `MuseTera ${plan.label}`,
-      externalReference,
-    });
-    if (!checkout.ok)
-      return {
-        text: "❌ Não foi possível gerar o checkout do Mercado Pago. Tente novamente ou digite *1* para falar com o suporte.",
-        next: "main",
-        status: "bot",
-      };
+    // Ask for the e-mail before creating the checkout: it becomes the
+    // portal login when the payment is approved.
     return {
-      text: creditSuccess(plan, checkout.checkoutUrl),
-      next: "main",
+      text: EMAIL_PROMPT(plan),
+      next: `email_card_${plan.id}`,
       status: "bot",
-      charge: {
-        planId: plan.id,
-        planLabel: plan.label,
-        amount: plan.price,
-        paymentId: `preference:${checkout.preferenceId}`,
-        externalReference,
-        paymentMethod: "card",
-      },
     };
   }
   if (step === "plans_choose_pix") {
@@ -306,34 +364,21 @@ async function replyFor(
     )[t];
     if (!plan)
       return { text: planChoicePrompt("pix"), next: step, status: "bot" };
-    const externalReference = `musetera-${conversation.id}-${Date.now()}`;
-    const pix = await createPixPayment({
-      amount: plan.price,
-      description: `MuseTera ${plan.label}`,
-      externalReference,
-    });
-    if (!pix.ok) return { text: PIX_ERROR, next: "main", status: "bot" };
     return {
-      // The copia-e-cola code goes alone in a follow-up message so the
-      // customer can long-press and copy ONLY the code, without the
-      // surrounding instructions getting in the way.
-      text: pixSuccess(plan),
-      extraTexts: [pix.qrCode],
-      next: "main",
+      text: EMAIL_PROMPT(plan),
+      next: `email_pix_${plan.id}`,
       status: "bot",
-      charge: {
-        planId: plan.id,
-        planLabel: plan.label,
-        amount: plan.price,
-        paymentId: String(pix.paymentId),
-        externalReference,
-        paymentMethod: "pix",
-        qrCode: pix.qrCode,
-        qrCodeBase64: pix.qrCodeBase64,
-        expiresAt:
-          pix.expiresAt ?? new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-      },
     };
+  }
+  const emailStep = /^email_(pix|card)_(30d|6m|1y)$/.exec(step);
+  if (emailStep) {
+    const plan = PLANS[emailStep[2] as PlanInfo["id"]];
+    // `t` is the trimmed, lowercased message — fine for an e-mail login.
+    if (!isValidEmail(t))
+      return { text: EMAIL_INVALID, next: step, status: "bot" };
+    return emailStep[1] === "pix"
+      ? startPixCharge(conversation, plan, t)
+      : startCardCharge(conversation, plan, t);
   }
   // Steps removed from the menu (schedule, register) fall through to
   // INVALID_OPTION + "main" below, so in-flight conversations land safely
@@ -475,6 +520,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
       payment_method: answer.charge.paymentMethod,
       qr_code: answer.charge.qrCode ?? null,
       qr_code_base64: answer.charge.qrCodeBase64 ?? null,
+      customer_email: answer.charge.customerEmail ?? null,
       expires_at: answer.charge.expiresAt ?? null,
       phone,
       instance_name: resolved.instance,

@@ -178,6 +178,57 @@ export const PIX_ERROR =
 export const paymentApproved = (planLabel: string, amountLabel: string, paymentId: string) =>
   `✅ *Pagamento confirmado!*\n\n📦 Plano: *${planLabel}*\n💰 Valor: *${amountLabel}*\n🆔 ID: ${paymentId}\n\nObrigado pela confiança! 💙\n\n👉 Acesse a plataforma: https://portal.musetera.com.br/login\n\nQualquer dúvida, digite *1* para falar com o suporte.`;
 
+export const EMAIL_PROMPT = (plan: PlanInfo) =>
+  `📧 *Quase lá!*
+
+📦 Plano escolhido: *${plan.label} — ${plan.priceLabel}*
+
+Pra liberar seu acesso ao portal MuseTera, me envie o seu *e-mail*:
+
+_Ele vai ser o seu login no portal. Digite o e-mail completo, ex: nome@email.com_`;
+
+export const EMAIL_INVALID =
+  "⚠️ Esse e-mail não parece válido. Confira e envie de novo, por favor (ex: nome@email.com).";
+
+export const paymentAccessGranted = (params: {
+  planLabel: string;
+  amountLabel: string;
+  expiresLabel: string;
+  email: string;
+  password: string;
+}) =>
+  `🎉 *Pagamento confirmado e acesso liberado!*
+
+📦 Plano: *${params.planLabel}*
+💰 Valor: *${params.amountLabel}*
+🗓️ *Acesso válido até ${params.expiresLabel}*
+
+🔐 *Suas credenciais do portal:*
+📧 E-mail: ${params.email}
+🔑 Senha temporária: ${params.password}
+
+👉 Acesse: https://portal.musetera.com.br/login
+
+_Troque a senha no primeiro acesso, em Meu perfil._
+Qualquer dúvida, digite *1* para falar com o suporte.`;
+
+export const paymentRenewed = (params: {
+  planLabel: string;
+  amountLabel: string;
+  expiresLabel: string;
+  email: string;
+}) =>
+  `🔄 *Assinatura renovada!*
+
+📦 Plano: *${params.planLabel}*
+💰 Valor: *${params.amountLabel}*
+🗓️ *Seu acesso agora vai até ${params.expiresLabel}*
+
+👉 Acesse com seu e-mail e senha de sempre: https://portal.musetera.com.br/login
+📧 E-mail da conta: ${params.email}
+
+Qualquer dúvida, digite *1* para falar com o suporte.`;
+
 export const INVALID_OPTION =
   "⚠️ Opção inválida. Digite o número da opção ou *menu* para voltar.";
 
