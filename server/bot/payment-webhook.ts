@@ -6,6 +6,7 @@ import { addMessage, getOrCreate, resolveInstance } from "./webhook-handler";
 import {
   paymentApproved,
   paymentAccessGranted,
+  paymentCustomerPassword,
   paymentActivatedExisting,
   paymentRenewed,
 } from "./flow";
@@ -228,6 +229,13 @@ export async function handleMercadoPagoWebhook(req: Request, res: Response) {
           expiresLabel,
           email: charge.customer_email,
           password: access.tempPassword!,
+        });
+      } else if (access.kind === "customer") {
+        text = paymentCustomerPassword({
+          planLabel: charge.plan_label,
+          amountLabel,
+          expiresLabel,
+          email: charge.customer_email,
         });
       } else if (access.kind === "existing") {
         text = paymentActivatedExisting({

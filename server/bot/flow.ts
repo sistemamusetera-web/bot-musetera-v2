@@ -194,7 +194,36 @@ export const ACCOUNT_FOUND_NOTICE =
   "✅ *Conta encontrada!* Reconheci seu e-mail no portal MuseTera — o pagamento será vinculado à sua conta.";
 
 export const ACCOUNT_CREATED_NOTICE =
-  "✅ *Conta criada no portal!* Suas credenciais de acesso chegam aqui assim que o pagamento for confirmado.";
+  "✅ *Conta criada no portal!* Guarde o e-mail e a senha que você acabou de criar — são eles que liberam seu acesso quando o pagamento for confirmado.";
+
+export const PASSWORD_PROMPT = `🔐 *Crie a senha da sua conta*
+
+Esse e-mail ainda não tem conta no portal MuseTera. Escolha uma senha pra ela — vai ser a sua senha de acesso ao portal, junto com esse e-mail.
+
+Digite uma senha com pelo menos *6 caracteres*:`;
+
+export const PASSWORD_INVALID =
+  "⚠️ Essa senha não serve: ela precisa ter pelo menos 6 caracteres. Escolha outra, por favor:";
+
+export const paymentCustomerPassword = (params: {
+  planLabel: string;
+  amountLabel: string;
+  expiresLabel: string;
+  email: string;
+}) =>
+  `🎉 *Pagamento confirmado e acesso liberado!*
+
+📦 Plano: *${params.planLabel}*
+💰 Valor: *${params.amountLabel}*
+🗓️ *Acesso válido até ${params.expiresLabel}*
+
+🔐 *Seu acesso ao portal:*
+📧 E-mail: ${params.email}
+🔑 Senha: a que você criou aqui no cadastro
+
+👉 Acesse: https://portal.musetera.com.br/login
+
+Qualquer dúvida, digite *1* para falar com o suporte.`;
 
 export const paymentActivatedExisting = (params: {
   planLabel: string;

@@ -96,22 +96,26 @@ async function ensureProfileRow(userId: string, displayName: string) {
 }
 
 /**
- * Creates a portal account for an e-mail the bot did not recognize. The
- * initial password is random and never delivered: if the purchase is
- * paid, approval replaces it with the temporary password sent to the
- * customer; if it is never paid, the account simply has no access.
+ * Creates a portal account with the password the customer chose in the
+ * chat. The account only gains access when a payment is approved and
+ * records a subscription expiry; before that it is just a login.
  */
 export async function createPortalAccount(params: {
   email: string;
+  password: string;
   phone: string;
   displayName: string;
 }): Promise<User> {
   const email = params.email.trim().toLowerCase();
   const created = await supabaseAdmin.auth.admin.createUser({
     email,
-    password: generateTempPassword(20),
+    password: params.password,
     email_confirm: true,
-    user_metadata: { phone: params.phone, origin: "whatsapp-bot" },
+    user_metadata: {
+      phone: params.phone,
+      origin: "whatsapp-bot",
+      password_source: "customer",
+    },
   });
   if (created.error) throw created.error;
   await ensureProfileRow(
@@ -124,11 +128,14 @@ export async function createPortalAccount(params: {
 export type PortalAccess = {
   userId: string;
   /**
-   * credentials: bot-created account, customer receives a temp password.
+   * credentials: bot-created account with a bot-generated password the
+   *   customer still needs to receive.
+   * customer: bot-created account whose password the customer chose in
+   *   the chat — never reset, never resent.
    * existing: portal-created account, its password is never touched.
    * renewal: this account already received a confirmation before.
    */
-  kind: "credentials" | "existing" | "renewal";
+  kind: "credentials" | "customer" | "existing" | "renewal";
   tempPassword?: string;
   expiresAt: Date;
 };
@@ -162,7 +169,11 @@ export async function ensurePortalAccess(params: {
       email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { phone: params.phone, origin: "whatsapp-bot" },
+      user_metadata: {
+        phone: params.phone,
+        origin: "whatsapp-bot",
+        password_source: "temp",
+      },
     });
     if (created.error) throw created.error;
     user = created.data.user;
@@ -179,18 +190,22 @@ export async function ensurePortalAccess(params: {
     const hasConfirmedBefore = !!prior.data && prior.data.length > 0;
     if (hasConfirmedBefore) {
       kind = "renewal";
-    } else if (user.user_metadata?.origin === "whatsapp-bot") {
-      // Bot-created account whose credentials were never delivered:
-      // (re)set the password so the message carries a working one.
+    } else if (user.user_metadata?.origin !== "whatsapp-bot") {
+      // Account created on the portal: never touch its password.
+      kind = "existing";
+    } else if (user.user_metadata?.password_source === "customer") {
+      // The customer chose this password in the chat: keep it.
+      kind = "customer";
+    } else {
+      // Bot-created account whose generated credentials were never
+      // delivered: (re)set the password so the message carries a
+      // working one.
       tempPassword = generateTempPassword();
       const updated = await supabaseAdmin.auth.admin.updateUserById(user.id, {
         password: tempPassword,
       });
       if (updated.error) throw updated.error;
       kind = "credentials";
-    } else {
-      // Account created on the portal: never touch its password.
-      kind = "existing";
     }
   }
 

@@ -23,6 +23,8 @@ import {
   EMAIL_INVALID,
   ACCOUNT_FOUND_NOTICE,
   ACCOUNT_CREATED_NOTICE,
+  PASSWORD_PROMPT,
+  PASSWORD_INVALID,
   isReactivationWord,
   type PlanInfo,
 } from "./flow";
@@ -224,6 +226,8 @@ type Reply = {
   charge?: PaymentCharge;
   /** Extra messages sent right after the main one (e.g. the bare PIX code). */
   extraTexts?: string[];
+  /** Replacement bot_state context (e.g. the pending purchase e-mail). */
+  context?: Record<string, unknown>;
 };
 
 async function startCardCharge(
@@ -305,7 +309,8 @@ async function startPixCharge(
 
 async function replyFor(
   conversation: Conversation,
-  text: string
+  text: string,
+  context: Record<string, unknown> = {}
 ): Promise<Reply> {
   const step = isReactivationWord(text)
     ? "main"
@@ -391,34 +396,90 @@ async function replyFor(
     // `t` is the trimmed, lowercased message — fine for an e-mail login.
     if (!isValidEmail(t))
       return { text: EMAIL_INVALID, next: step, status: "bot" };
-    // Recognize the portal account for this e-mail, or create it on the
-    // spot; only then does the payment get generated, already linked to
-    // the account. A lookup/creation failure must not block the sale:
-    // approval-time provisioning retries and links the account then.
+    // Recognize the portal account for this e-mail. A known account goes
+    // straight to payment, already linked; an unknown e-mail first
+    // collects the password the customer wants for the new account.
+    // A lookup failure must not block the sale: treat it as unknown and
+    // let the password step sort it out.
+    let existing: Awaited<ReturnType<typeof findPortalUserByEmail>>;
+    try {
+      existing = await findPortalUserByEmail(t);
+    } catch (error) {
+      console.error("[portal] purchase-time e-mail lookup failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      existing = undefined;
+    }
+    if (existing) {
+      return emailStep[1] === "pix"
+        ? startPixCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE)
+        : startCardCharge(conversation, plan, t, existing.id, ACCOUNT_FOUND_NOTICE);
+    }
+    return {
+      text: PASSWORD_PROMPT,
+      next: `senha_${emailStep[1]}_${plan.id}`,
+      status: "bot",
+      context: { pendingEmail: t },
+    };
+  }
+  const senhaStep = /^senha_(pix|card)_(30d|6m|1y)$/.exec(step);
+  if (senhaStep) {
+    const plan = PLANS[senhaStep[2] as PlanInfo["id"]];
+    const pendingEmail =
+      typeof context.pendingEmail === "string" ? context.pendingEmail : null;
+    if (!pendingEmail) {
+      // Lost the e-mail (old conversation state): restart at the e-mail.
+      return {
+        text: EMAIL_PROMPT(plan),
+        next: `email_${senhaStep[1]}_${plan.id}`,
+        status: "bot",
+        context: {},
+      };
+    }
+    // The password is case-sensitive: use the raw message, only trimmed.
+    const password = text.trim();
+    if (
+      password.length < 6 ||
+      password.length > 72 ||
+      isReactivationWord(password)
+    ) {
+      return { text: PASSWORD_INVALID, next: step, status: "bot" };
+    }
+    // Create the account with the customer's own password, then generate
+    // the payment. If creation fails (a race, or the account appeared in
+    // the meantime), fall back to linking whatever account exists; if
+    // that fails too, approval-time provisioning retries the link, so
+    // the sale is never blocked here.
     let portalUserId: string | null = null;
     let notice: string | undefined;
     try {
-      const existing = await findPortalUserByEmail(t);
-      if (existing) {
-        portalUserId = existing.id;
-        notice = ACCOUNT_FOUND_NOTICE;
-      } else {
-        const created = await createPortalAccount({
-          email: t,
-          phone: conversation.phone,
-          displayName: conversation.contact_name ?? "",
-        });
-        portalUserId = created.id;
-        notice = ACCOUNT_CREATED_NOTICE;
-      }
+      const created = await createPortalAccount({
+        email: pendingEmail,
+        password,
+        phone: conversation.phone,
+        displayName: conversation.contact_name ?? "",
+      });
+      portalUserId = created.id;
+      notice = ACCOUNT_CREATED_NOTICE;
     } catch (error) {
-      console.error("[portal] purchase-time account step failed", {
+      console.error("[portal] purchase-time account creation failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      try {
+        const found = await findPortalUserByEmail(pendingEmail);
+        if (found) {
+          portalUserId = found.id;
+          notice = ACCOUNT_FOUND_NOTICE;
+        }
+      } catch {
+        // Approval-time provisioning will link the account later.
+      }
     }
-    return emailStep[1] === "pix"
-      ? startPixCharge(conversation, plan, t, portalUserId, notice)
-      : startCardCharge(conversation, plan, t, portalUserId, notice);
+    const reply =
+      senhaStep[1] === "pix"
+        ? await startPixCharge(conversation, plan, pendingEmail, portalUserId, notice)
+        : await startCardCharge(conversation, plan, pendingEmail, portalUserId, notice);
+    return { ...reply, context: {} };
   }
   // Steps removed from the menu (schedule, register) fall through to
   // INVALID_OPTION + "main" below, so in-flight conversations land safely
@@ -500,10 +561,30 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
   ).trim();
   if (!text) return json(res, { ok: true, ignored: "no-text" });
   const conversation = await getOrCreate(phone, data?.pushName);
-  await addMessage(conversation.id, "inbound", "user", text, data?.key?.id);
+  // Never persist a password the customer typed: mask it in the history
+  // (the panel would otherwise show it in plain text).
+  const isPasswordAnswer = (conversation.current_menu ?? "").startsWith(
+    "senha_"
+  );
+  await addMessage(
+    conversation.id,
+    "inbound",
+    "user",
+    isPasswordAnswer ? "🔐 (senha informada pelo cliente)" : text,
+    data?.key?.id
+  );
   if (conversation.status === "human" && !isReactivationWord(text))
     return json(res, { ok: true, handled: "human-mode" });
-  const answer = await replyFor(conversation, text);
+  const stateResult = await supabaseAdmin
+    .from("bot_state")
+    .select("context_data")
+    .eq("conversation_id", conversation.id)
+    .maybeSingle();
+  const botContext = (stateResult.data?.context_data ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const answer = await replyFor(conversation, text, botContext);
   const sent = await sendWhatsAppText({
     number: phone,
     text: answer.text,
@@ -586,7 +667,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
     {
       conversation_id: conversation.id,
       current_step: answer.next,
-      context_data: {},
+      context_data: answer.context ?? botContext,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "conversation_id" }
