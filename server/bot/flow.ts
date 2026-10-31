@@ -80,9 +80,9 @@ export const SUPPORT_WAITING =
 
 export const PLANS_TEXT = `💳 *Planos MuseTera* ✨
 
-🗓️ 30 Dias — *R$ 69,90*
-📅 6 Meses — *R$ 399,00* 🔥
-🏆 12 Meses — *R$ 699,00* 👑 _melhor custo-benefício!_
+🗓️ 30 Dias — *R$ 34,90*
+📅 6 Meses — *R$ 200,00* 🔥
+🏆 12 Meses — *R$ 400,00* 👑 _melhor custo-benefício!_
 
 👉 _Para escolher um plano e pagar, digite *2* no menu._`;
 
@@ -99,20 +99,20 @@ export const PLANS: Record<PlanInfo["id"], PlanInfo> = {
   "30d": {
     id: "30d",
     label: "30 Dias",
-    price: 69.9,
-    priceLabel: "R$ 69,90",
+    price: 34.9,
+    priceLabel: "R$ 34,90",
   },
   "6m": {
     id: "6m",
     label: "6 Meses",
-    price: 399.0,
-    priceLabel: "R$ 399,00",
+    price: 200.0,
+    priceLabel: "R$ 200,00",
   },
   "1y": {
     id: "1y",
     label: "12 Meses",
-    price: 699.0,
-    priceLabel: "R$ 699,00",
+    price: 400.0,
+    priceLabel: "R$ 400,00",
   },
 };
 
@@ -141,9 +141,9 @@ export const planChoicePrompt = (method: "pix" | "credit") => {
 
 🎯 Escolha seu plano: 👇
 
-1️⃣ 🗓️ *30 Dias* — R$ 69,90
-2️⃣ 📅 *6 Meses* — R$ 399,00 🔥
-3️⃣ 🏆 *12 Meses* — R$ 699,00 👑 _melhor custo-benefício!_
+1️⃣ 🗓️ *30 Dias* — R$ 34,90
+2️⃣ 📅 *6 Meses* — R$ 200,00 🔥
+3️⃣ 🏆 *12 Meses* — R$ 400,00 👑 _melhor custo-benefício!_
 
 🔙 _Digite *menu* para voltar._`;
 };
