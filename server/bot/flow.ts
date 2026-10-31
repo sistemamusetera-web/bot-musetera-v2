@@ -148,15 +148,15 @@ export const planChoicePrompt = (method: "pix" | "credit") => {
 🔙 _Digite *menu* para voltar._`;
 };
 
-export const pixSuccess = (plan: PlanInfo, payUrl: string) =>
+export const pixSuccess = (plan: PlanInfo) =>
   `✅ *PIX gerado!*
 
 📦 ${plan.label} — *${plan.priceLabel}*
 
-🔗 ${payUrl}
-
 ⏰ Expira em 30 min
 📩 Envie o comprovante após pagar
+
+👇 *O código PIX copia e cola vai sozinho na próxima mensagem* — toque e segure nele pra copiar.
 
 _Digite *menu* para voltar._`;
 

@@ -213,6 +213,8 @@ async function replyFor(
   status: string;
   muted?: string;
   charge?: PaymentCharge;
+  /** Extra messages sent right after the main one (e.g. the bare PIX code). */
+  extraTexts?: string[];
 }> {
   const step = isReactivationWord(text)
     ? "main"
@@ -312,7 +314,11 @@ async function replyFor(
     });
     if (!pix.ok) return { text: PIX_ERROR, next: "main", status: "bot" };
     return {
-      text: pixSuccess(plan, pix.qrCode),
+      // The copia-e-cola code goes alone in a follow-up message so the
+      // customer can long-press and copy ONLY the code, without the
+      // surrounding instructions getting in the way.
+      text: pixSuccess(plan),
+      extraTexts: [pix.qrCode],
       next: "main",
       status: "bot",
       charge: {
@@ -438,6 +444,27 @@ export async function handleEvolutionWebhook(req: Request, res: Response) {
       nextStep: answer.next,
     })
   );
+  for (const extraText of answer.extraTexts ?? []) {
+    const extraSent = await sendWhatsAppText({
+      number: phone,
+      text: extraText,
+      instance: resolved.instance,
+      apiKey: resolved.apiKey,
+    });
+    if (!extraSent.ok) {
+      console.error(
+        JSON.stringify({
+          event: "evolution_send_failed",
+          part: "followup",
+          instance: resolved.instance,
+          phone,
+          error: extraSent.error,
+        })
+      );
+      continue;
+    }
+    await addMessage(conversation.id, "outbound", "bot", extraText, extraSent.id);
+  }
   if (answer.charge) {
     const charge = await supabaseAdmin.from("pix_charges").insert({
       plan_id: answer.charge.planId,
